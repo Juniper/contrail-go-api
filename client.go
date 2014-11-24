@@ -39,7 +39,6 @@ type client struct {
 	server string
 	port   int
 	httpClient *http.Client
-	typeMap TypeMap
 }
 
 // The Client List API returns an array of ListResult entries.
@@ -49,16 +48,19 @@ type ListResult struct {
 	Uuid string
 }
 
+var (
+	typeMap TypeMap
+)
+
 // Allocates and initialized a client.
 //
 // The typeMap parameter specifies a map of name, reflection Type values
 // use to deserialize the data received from the server.
-func NewClient(typeMap TypeMap, server string, port int) *client {
+func NewClient(server string, port int) *client {
 	client := new(client)
 	client.server = server
 	client.port = port
 	client.httpClient = &http.Client{}
-	client.typeMap = typeMap
 	return client
 }
 
@@ -151,7 +153,7 @@ func (c *client) readObject(typename string, href string) (IObject, error) {
 		return nil, err
 	}
 
-	var xtype reflect.Type = c.typeMap[typename]
+	var xtype reflect.Type = typeMap[typename]
 	valueT := reflect.New(xtype)
 	obj := valueT.Interface().(IObject)
 	err = json.Unmarshal(m[typename], obj)
@@ -351,4 +353,8 @@ func (c *client) UpdateReference(msg *ReferenceUpdateMsg) error {
 		return errors.New(resp.Status)
 	}
 	return nil
+}
+
+func RegisterTypeMap(m TypeMap) {
+	typeMap = m
 }
