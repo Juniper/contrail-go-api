@@ -67,8 +67,7 @@ func TestUpdateAddBefore(t *testing.T) {
 	}
 	msg := client.messages[0]
 	if msg.RefUuid != "1" || msg.Operation != "ADD" {
-		t.Error(fmt.Sprintf(
-			"op: %s, id=%s", msg.Operation, msg.RefUuid))
+		t.Errorf("op: %s, id=%s", msg.Operation, msg.RefUuid)
 	}
 }
 
@@ -92,8 +91,7 @@ func TestUpdateAddAfter(t *testing.T) {
 	}
 	msg := client.messages[0]
 	if msg.RefUuid != "9" || msg.Operation != "ADD" {
-		t.Error(fmt.Sprintf(
-			"op: %s, id=%s", msg.Operation, msg.RefUuid))
+		t.Errorf("op: %s, id=%s", msg.Operation, msg.RefUuid)
 	}
 }
 
@@ -119,8 +117,7 @@ func TestUpdateDeleteMid(t *testing.T) {
 	}
 	msg := client.messages[0]
 	if msg.RefUuid != "5" || msg.Operation != "DELETE" {
-		t.Error(fmt.Sprintf(
-			"op: %s, id=%s", msg.Operation, msg.RefUuid))
+		t.Errorf("op: %s, id=%s", msg.Operation, msg.RefUuid)
 	}
 }
 
@@ -307,13 +304,11 @@ func TestUpdateAttrArray(t *testing.T) {
 	}
 	msg := client.messages[0]
 	if msg.RefUuid != "2" || msg.Operation != "DELETE" {
-		t.Error(fmt.Sprintf(
-			"op: %s, id=%s", msg.Operation, msg.RefUuid))
+		t.Errorf("op: %s, id=%s", msg.Operation, msg.RefUuid)
 	}
 	msg = client.messages[1]
 	if msg.RefUuid != "2" || msg.Operation != "ADD" {
-		t.Error(fmt.Sprintf(
-			"op: %s, id=%s", msg.Operation, msg.RefUuid))
+		t.Errorf("op: %s, id=%s", msg.Operation, msg.RefUuid)
 	}
 
 }
