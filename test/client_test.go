@@ -72,14 +72,18 @@ func TestCreate(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else if len(refs) > 0 {
-			xnet.DeleteNetworkIpam(refs[0].Uuid)
-			nsubnets := types.VnSubnetsType{}
-			nsubnets.AddIpamSubnets(
-				&types.IpamSubnetType{
-					Subnet: types.SubnetType{
-						"192.168.0.0", 16}})
-			xnet.AddNetworkIpam(ipam.(*types.NetworkIpam), nsubnets)
-			client.Update(xnet)
+			xattr := refs[0].Attr.(types.VnSubnetsType)
+			if len(xattr.IpamSubnets) == 1 {
+				isubnet := xattr.IpamSubnets[0]
+				if isubnet.Subnet.IpPrefix != "10.0.0.0" ||
+					isubnet.Subnet.IpPrefixLen != 8 {
+					t.Errorf("Bad subnet %s/%d",
+						isubnet.Subnet.IpPrefix,
+						isubnet.Subnet.IpPrefixLen)
+				}
+			} else {
+				t.Errorf("%d subnets", len(xattr.IpamSubnets))
+			}
 		} else {
 			t.Error("Empty network-ipam reference list")
 		}
@@ -88,5 +92,123 @@ func TestCreate(t *testing.T) {
 	err = client.Delete(&net)
 	if err != nil {
 		t.Error(err)
+	}
+}
+
+func TestPropertyUpdate(t *testing.T) {
+	client := contrail.NewClient("localhost", 8082)
+	net := types.VirtualNetwork{}
+	net.SetName("test")
+
+	err := client.Create(&net)
+	if err != nil {
+		t.Error(err)
+	}
+
+	defer client.Delete(&net)
+
+	props := net.GetVirtualNetworkProperties()
+	if len(props.ForwardingMode) > 0 {
+		t.Error(props.ForwardingMode)
+	}
+	props.ForwardingMode = "l2_l3"
+	net.SetVirtualNetworkProperties(&props)
+	err = client.Update(&net)
+	if err != nil {
+		t.Error(err)
+	}
+
+	obj, err := client.FindByUuid("virtual-network", net.GetUuid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	netPtr := obj.(*types.VirtualNetwork)
+	p2 := netPtr.GetVirtualNetworkProperties()
+	if p2.ForwardingMode != "l2_l3" {
+		t.Errorf("Expected: l2_l3 got: %s", p2.ForwardingMode)
+	}
+}
+
+func TestReferenceUpdate(t *testing.T) {
+	client := contrail.NewClient("localhost", 8082)
+	net := types.VirtualNetwork{}
+	net.SetName("test2")
+	ipam, err := client.FindByName("network-ipam",
+		"default-domain:default-project:default-network-ipam")
+	if err != nil {
+		t.Fatal(err)
+	}
+	subnets := types.VnSubnetsType{}
+	subnets.AddIpamSubnets(
+		&types.IpamSubnetType{
+			Subnet: types.SubnetType{"10.0.0.0", 8}})
+	net.AddNetworkIpam(ipam.(*types.NetworkIpam), subnets)
+	err = client.Create(&net)
+	if err != nil {
+		t.Error(err)
+	}
+
+	defer client.Delete(&net)
+
+	obj, err := client.FindByUuid("virtual-network", net.GetUuid())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	netPtr := obj.(*types.VirtualNetwork)
+	refs, err := netPtr.GetNetworkIpamRefs()
+	if err != nil {
+		t.Error(err)
+	} else if len(refs) > 0 {
+		netPtr.DeleteNetworkIpam(refs[0].Uuid)
+		nsubnets := types.VnSubnetsType{}
+		nsubnets.AddIpamSubnets(
+			&types.IpamSubnetType{
+				Subnet: types.SubnetType{
+					"192.168.0.0", 16}})
+		netPtr.AddNetworkIpam(ipam.(*types.NetworkIpam), nsubnets)
+		client.Update(netPtr)
+	} else {
+		t.Error("Empty network-ipam reference list")
+	}
+
+	obj, err = client.FindByUuid("virtual-network", net.GetUuid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	netPtr = obj.(*types.VirtualNetwork)
+	refs, err = netPtr.GetNetworkIpamRefs()
+	if err != nil {
+		t.Error(err)
+	} else if len(refs) != 1 {
+		t.Errorf("Expected: 1 reference, %d actual", len(refs))
+	} else {
+		xattr := refs[0].Attr.(types.VnSubnetsType)
+		if len(xattr.IpamSubnets) == 1 {
+			isubnet := xattr.IpamSubnets[0]
+			if isubnet.Subnet.IpPrefix != "192.168.0.0" ||
+				isubnet.Subnet.IpPrefixLen != 16 {
+				t.Errorf("Bad subnet %s/%d",
+					isubnet.Subnet.IpPrefix,
+					isubnet.Subnet.IpPrefixLen)
+			}
+		} else {
+			t.Errorf("%d subnets", len(xattr.IpamSubnets))
+		}
+	}
+
+	netPtr.ClearNetworkIpam()
+	client.Update(netPtr)
+
+	obj, err = client.FindByUuid("virtual-network", net.GetUuid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	netPtr = obj.(*types.VirtualNetwork)
+	refs, err = netPtr.GetNetworkIpamRefs()
+	if err != nil {
+		t.Error(err)
+	} else if len(refs) != 0 {
+		t.Errorf("Expected: 1 reference, %d actual", len(refs))
 	}
 }
