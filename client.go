@@ -35,7 +35,7 @@ type ClientInterface interface {
 }
 
 // A client of the OpenContrail API server.
-type client struct {
+type Client struct {
 	server string
 	port   int
 	httpClient *http.Client
@@ -56,8 +56,8 @@ var (
 //
 // The typeMap parameter specifies a map of name, reflection Type values
 // use to deserialize the data received from the server.
-func NewClient(server string, port int) *client {
-	client := new(client)
+func NewClient(server string, port int) *Client {
+	client := new(Client)
 	client.server = server
 	client.port = port
 	client.httpClient = &http.Client{}
@@ -80,14 +80,14 @@ func typename(ptr IObject) string {
 	return string(buf)
 }
 
-func (c *client) GetHttpClient() *http.Client {
+func (c *Client) GetHttpClient() *http.Client {
 	return c.httpClient
 }
 
 // Create an object in the OpenContrail API server.
 //
 // The object must have been initialized with a name.
-func (c *client) Create(ptr IObject) error {
+func (c *Client) Create(ptr IObject) error {
 	xtype := typename(ptr)
 	url := fmt.Sprintf("http://%s:%d/%ss", c.server, c.port, xtype)
 
@@ -130,7 +130,7 @@ func (c *client) Create(ptr IObject) error {
 //
 // This method retrieves the object properties but not its references to
 // other objects.
-func (c *client) readObject(typename string, href string) (IObject, error) {
+func (c *Client) readObject(typename string, href string) (IObject, error) {
 	url := fmt.Sprintf("%s?exclude_back_refs=true&exclude_children=true",
 		href)
 	resp, err := c.httpClient.Get(url)
@@ -165,13 +165,13 @@ func (c *client) readObject(typename string, href string) (IObject, error) {
 }
 
 // Given a ListResult, retrieve an object from the API server.
-func (c *client) ReadListResult(
+func (c *Client) ReadListResult(
 	typename string, result *ListResult) (IObject, error) {
 	return c.readObject(typename, result.Href)
 }
 
 // Given a link reference, retrieve an object from the API server.
-func (c *client) ReadReference(
+func (c *Client) ReadReference(
 	typename string, ref *Reference) (IObject, error) {
 	return c.readObject(typename, ref.Href)
 }
@@ -183,7 +183,7 @@ func (c *client) ReadReference(
 // been concurrently modified in the API server.
 // Updates modify properties that have been marked as modified in the local
 // representation.
-func (c *client) Update(ptr IObject) error {
+func (c *Client) Update(ptr IObject) error {
 	objJson, err := ptr.UpdateObject()
 	if err != nil {
 		return err
@@ -219,7 +219,7 @@ func (c *client) Update(ptr IObject) error {
 }
 
 // Delete an object from the API server.
-func (c *client) Delete(ptr IObject) error {
+func (c *Client) Delete(ptr IObject) error {
 	req, err := http.NewRequest("DELETE", ptr.GetHref(), nil)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -232,7 +232,7 @@ func (c *client) Delete(ptr IObject) error {
 }
 
 // Read an object identified by UUID.
-func (c *client) FindByUuid(typename string, uuid string) (IObject, error) {
+func (c *Client) FindByUuid(typename string, uuid string) (IObject, error) {
 	url := fmt.Sprintf("http://%s:%d/%s/%s", c.server, c.port,
 		typename, uuid)
 	return c.readObject(typename, url)
@@ -240,7 +240,7 @@ func (c *client) FindByUuid(typename string, uuid string) (IObject, error) {
 
 // Read an object identified by fully-qualified name represented as a
 // string.
-func (c *client) FindByName(typename string, fqn string) (IObject, error) {
+func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
 	url := fmt.Sprintf("http://%s:%d/fqname-to-id", c.server, c.port)
 	request := struct {
 		Typename string `json:"type"`
@@ -283,7 +283,7 @@ func (c *client) FindByName(typename string, fqn string) (IObject, error) {
 }
 
 // Retrieve the list of all elements of a specific type.
-func (c *client) List(typename string) ([]ListResult, error) {
+func (c *Client) List(typename string) ([]ListResult, error) {
 	url := fmt.Sprintf("http://%s:%d/%ss", c.server, c.port, typename)
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
@@ -311,7 +311,7 @@ func (c *client) List(typename string) ([]ListResult, error) {
 }
 
 // Retrieve a specified field of an object from the API server.
-func (c *client) GetField(obj IObject, field string) error {
+func (c *Client) GetField(obj IObject, field string) error {
 	url := fmt.Sprintf("%s?fields=%s", obj.GetHref(), field)
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
@@ -338,7 +338,7 @@ func (c *client) GetField(obj IObject, field string) error {
 }
 
 // Send a reference update message to the API server.
-func (c *client) UpdateReference(msg *ReferenceUpdateMsg) error {
+func (c *Client) UpdateReference(msg *ReferenceUpdateMsg) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return err
