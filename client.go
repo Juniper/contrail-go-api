@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
+	"strconv"
 	"unicode"
 )
 
@@ -147,16 +149,21 @@ func (c *Client) readObject(typename string, href string) (IObject, error) {
 		return nil, err
 	}
 
-	var m map[string]json.RawMessage
+	var m map[string]*json.RawMessage
 	err = json.Unmarshal(body, &m)
 	if err != nil {
 		return nil, err
 	}
 
+	content, ok := m[typename]
+	if !ok {
+		return nil, fmt.Errorf("No %s in Response", typename)
+	}
+
 	var xtype reflect.Type = typeMap[typename]
 	valueT := reflect.New(xtype)
 	obj := valueT.Interface().(IObject)
-	err = json.Unmarshal(m[typename], obj)
+	err = json.Unmarshal(*content, obj)
 	if err != nil {
 		return nil, err
 	}
@@ -283,8 +290,21 @@ func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
 }
 
 // Retrieve the list of all elements of a specific type.
-func (c *Client) List(typename string) ([]ListResult, error) {
+func (c *Client) ListByParent(
+	typename string, parent_id string, count int) ([]ListResult, error) {
+	var values url.Values
+	values = make(url.Values, 0)
+	if len(parent_id) > 0 {
+		values.Add("parent_id", parent_id)
+	}
+	if count > 0 {
+		values.Add("count", strconv.Itoa(count))
+	}
+
 	url := fmt.Sprintf("http://%s:%d/%ss", c.server, c.port, typename)
+	if len(values) > 0 {
+		url += fmt.Sprintf("?%s", values.Encode())
+	}
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
 		return nil, err
@@ -299,15 +319,105 @@ func (c *Client) List(typename string) ([]ListResult, error) {
 		return nil, err
 	}
 
-	var m map[string]json.RawMessage
+	var m map[string]*json.RawMessage
 	err = json.Unmarshal(body, &m)
 	if err != nil {
 		return nil, err
 	}
 
+	content, ok := m[typename + "s"]
+	if !ok {
+		return nil, fmt.Errorf("No %ss in Response", typename)
+	}
 	var rlist []ListResult
-	err = json.Unmarshal(m[typename + "s"], &rlist)
+	err = json.Unmarshal(*content, &rlist)
 	return rlist, err
+}
+
+func (c *Client) List(typename string, count int) ([]ListResult, error) {
+	return c.ListByParent(typename, "", 0)
+}
+
+func (c *Client) ListDetailByParent(
+	typename string, parent_id string, fields []string, count int) (
+		[]IObject, error) {
+	var values url.Values
+	values = make(url.Values, 0)
+	if len(parent_id) > 0 {
+		values.Add("parent_id", parent_id)
+	}
+	if len(fields) > 0 {
+		values.Add("fields", strings.Join(fields, ","))
+	}
+	if count > 0 {
+		values.Add("count", strconv.Itoa(count))
+	}
+	values.Add("detail", "true")
+
+	url := fmt.Sprintf("http://%s:%d/%ss?%s",
+		c.server, c.port, typename, values.Encode())
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New(resp.Status)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var m map[string]*json.RawMessage
+	err = json.Unmarshal(body, &m)
+	if err != nil {
+		return nil, err
+	}
+
+	content, ok := m[typename + "s"]
+	if !ok {
+		return nil, fmt.Errorf("No %ss in Response", typename)
+	}
+
+	var elements []*json.RawMessage
+	err = json.Unmarshal(*content, &elements)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []IObject
+	var xtype reflect.Type = typeMap[typename]
+
+	for _, element := range elements {
+		var item map[string]*json.RawMessage
+		err = json.Unmarshal(*element, &item)
+		if err != nil {
+			return nil, err
+		}
+
+		content, ok := item[typename]
+		if !ok {
+			return nil, fmt.Errorf("No %s in element", typename)
+		}
+
+		valueT := reflect.New(xtype)
+		obj := valueT.Interface().(IObject)
+		err = json.Unmarshal(*content, obj)
+		if err != nil {
+			return nil, err
+		}
+		obj.SetClient(c)
+		result = append(result, obj)
+	}
+
+	return result, nil
+}
+
+func (c *Client) ListDetail(typename string, fields []string, count int) (
+	[]IObject, error) {
+	return c.ListDetailByParent(typename, "", fields, count)
 }
 
 // Retrieve a specified field of an object from the API server.

@@ -9,7 +9,7 @@ import (
 
 func TestClient(t *testing.T) {
 	client := contrail.NewClient("localhost", 8082)
-	elements, err := client.List("project")
+	elements, err := client.List("project", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,5 +210,32 @@ func TestReferenceUpdate(t *testing.T) {
 		t.Error(err)
 	} else if len(refs) != 0 {
 		t.Errorf("Expected: 1 reference, %d actual", len(refs))
+	}
+}
+
+func TestListDetail(t *testing.T) {
+	client := contrail.NewClient("localhost", 8082)
+	objects, err := client.ListDetail("virtual-network", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(objects) < 3 {
+		t.Error("Default networks not present")
+	}
+
+	objectMap := make(map[string]*types.VirtualNetwork, 0)
+	for _, object := range objects {
+		net := object.(*types.VirtualNetwork)
+		objectMap[net.GetName()] = net
+	}
+
+	expected := []string {
+		"ip-fabric", "__link_local__",
+	}
+	for _, expect := range expected {
+		_, ok := objectMap[expect]
+		if !ok {
+			t.Errorf("%s not found", expect)
+		}
 	}
 }
