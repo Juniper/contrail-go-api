@@ -225,6 +225,20 @@ func (c *Client) Update(ptr IObject) error {
 	return nil
 }
 
+func (c *Client) DeleteByUuid(typename, uuid string) error {
+	url := fmt.Sprintf("http://%s:%d/%s/%s",
+		c.server, c.port, typename, uuid)
+	req, err := http.NewRequest("DELETE", url, nil)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return errors.New(resp.Status)
+	}
+	return nil
+}
+
 // Delete an object from the API server.
 func (c *Client) Delete(ptr IObject) error {
 	req, err := http.NewRequest("DELETE", ptr.GetHref(), nil)
