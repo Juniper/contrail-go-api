@@ -245,9 +245,7 @@ func (c *Client) FindByUuid(typename string, uuid string) (IObject, error) {
 	return c.readObject(typename, url)
 }
 
-// Read an object identified by fully-qualified name represented as a
-// string.
-func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
+func (c *Client) UuidByName(typename string, fqn string) (string, error) {
 	url := fmt.Sprintf("http://%s:%d/fqname-to-id", c.server, c.port)
 	request := struct {
 		Typename string `json:"type"`
@@ -258,22 +256,22 @@ func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
 	}
 	data, err := json.Marshal(request)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
  	resp, err := c.httpClient.Post(url, "application/json",
 		bytes.NewReader(data))
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Status)
+		return "", errors.New(resp.Status)
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	m := struct {
@@ -281,11 +279,21 @@ func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
 	}{}
 	err = json.Unmarshal(body, &m)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
+	return m.Uuid, nil
+}
+
+// Read an object identified by fully-qualified name represented as a
+// string.
+func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
+	uuid, err := c.UuidByName(typename, fqn)
+	if err != nil {
+		return nil, err
+	}
 	href := fmt.Sprintf(
-		"http://%s:%d/%s/%s", c.server, c.port, typename, m.Uuid)
+		"http://%s:%d/%s/%s", c.server, c.port, typename, uuid)
 	return c.readObject(typename, href)
 }
 
