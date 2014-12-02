@@ -7,10 +7,13 @@ package main
 import (
 	"contrail-go-api"
 	"contrail-go-api/config"
+	"contrail-go-api/types"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
+	"text/template"
 )
 
 type CommonOptions struct {
@@ -18,20 +21,50 @@ type CommonOptions struct {
 	project_id string
 }
 
-type ShowOptions struct {
+type ListOptions struct {
 	allTenants bool
+	brief bool
+	detail bool
+}
+
+type CreateOptions struct {
+	subnet string
+}
+
+type DeleteOptions struct {
+	purge bool
+}
+
+type ShowOptions struct {
+	detail bool
 }
 
 var (
 	commonOpts CommonOptions
+	listOpts ListOptions
+	createOpts CreateOptions
+	deleteOpts DeleteOptions
 	showOpts ShowOptions
 )
 
+const show_network_brief = `  Network: {{.Name}}
+      Uuid: {{.Uuid}}        State: {{if .AdminState}}UP{{else}}DOWN{{end}}
+      Subnets: {{range .Subnets}}{{.}} {{end}}
+`
+const show_network_detail = `  Network: {{.Name}}
+      Uuid: {{.Uuid}}        State: {{if .AdminState}}UP{{else}}DOWN{{end}}
+      NetwordId: {{.NetworkId | printf "%-5d"}}    Mode: {{.Mode}}    Transit: {{.Transit}}
+      Subnets: {{range .Subnets}}{{.}} {{end}}{{if .RouteTargets}}
+      RouteTargets: {{range .RouteTargets}}{{.}} {{end}}{{end}}
+      {{if .Policies}}Policies:{{end}}{{range .Policies}}
+         {{.}}
+      {{end}}
+`
 
-func NetworkShow(client *contrail.Client, flagSet *flag.FlagSet) {
+func networkList(client *contrail.Client, flagSet *flag.FlagSet) {
 	var parent_id string
 
-	if !showOpts.allTenants {
+	if !listOpts.allTenants {
 		var err error
 		parent_id, err =
 			config.GetProjectId(
@@ -42,18 +75,162 @@ func NetworkShow(client *contrail.Client, flagSet *flag.FlagSet) {
 		}
 	}
 
-	networkList, err := config.NetworkList(client, parent_id)
+	networkList, err := config.NetworkList(client, parent_id,
+		listOpts.detail)
 	if err != nil {
 		fmt.Fprint(os.Stderr, err)
 		os.Exit(1)
 	}
-	writer := new(tabwriter.Writer)
-	writer.Init(os.Stdout, 0, 0, 1, ' ', 0)
-	fmt.Fprintln(writer, "Network\tUuid\tSubnets")
-	for _, n := range networkList {
-		fmt.Fprintf(writer, "%s\t%s\t%s\n", n.Name, n.Uuid, n.Subnets)
+
+	if listOpts.brief || listOpts.detail {
+		var tmpl string
+		if (listOpts.detail) {
+			tmpl = show_network_detail
+		} else {
+			tmpl = show_network_brief
+		}
+		t := template.Must(template.New("network-list").Parse(tmpl))
+		for _, n := range networkList {
+			t.Execute(os.Stdout, n)
+		}
+	} else {
+		// terse format (wide line)
+		writer := new(tabwriter.Writer)
+		writer.Init(os.Stdout, 0, 0, 1, ' ', 0)
+		fmt.Fprintln(writer, "Network\tUuid\tSubnets")
+		for _, n := range networkList {
+			fmt.Fprintf(writer, "%s\t%s\t%s\n", n.Name, n.Uuid,
+				strings.Join(n.Subnets, ", "))
+		}
+		writer.Flush()
 	}
-	writer.Flush()
+}
+
+func networkCreateUsage(argument *flag.FlagSet) func() {
+	flagSet := argument
+	return func() {
+		flagSet.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "    network-name\n")
+	}
+}
+
+func networkCreate(client *contrail.Client, flagSet *flag.FlagSet) {
+	if flagSet.NArg() < 1 {
+		flagSet.Usage()
+		os.Exit(2)
+	}
+
+	name := flagSet.Args()[0]
+
+	parent_id, err := config.GetProjectId(
+		client, commonOpts.project, commonOpts.project_id)
+	if err != nil {
+		fmt.Fprint(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	if len(createOpts.subnet) > 0 {
+		config.CreateNetworkWithSubnet(client, parent_id, name,
+			createOpts.subnet)
+	} else {
+		config.CreateNetwork(client, parent_id, name)
+	}
+}
+
+func nameOrIdUsage(argument *flag.FlagSet) func() {
+	flagSet := argument
+	return func() {
+		flagSet.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "    network-name or uuid\n")
+	}
+}
+
+func getNetworkUuidByName(
+	client *contrail.Client, project_name, project_id, name string) (
+		string, error) {
+	var fqn []string
+	if len(project_id) > 0 {
+		uuid := strings.ToLower(project_id)
+		if !config.IsUuid(uuid) {
+			fmt.Fprintf(os.Stderr,
+				"Invalid project-id value: %s\n", uuid)
+			os.Exit(2)
+		}
+		obj, err := client.FindByUuid("project", project_id)
+		if err != nil {
+			fmt.Fprint(os.Stderr, err)
+			os.Exit(2)
+		}
+		fqn = obj.GetFQName()
+	} else {
+		fqn = strings.Split(project_name, ":")
+		if len(fqn) == 1 {
+			obj := new(types.Project)
+			fqn = append(obj.GetDefaultParent(), project_name)
+		}
+	}
+	fqn = append(fqn, name)
+	return client.UuidByName("virtual-network", strings.Join(fqn, ":"))
+}
+
+func networkDelete(client *contrail.Client, flagSet *flag.FlagSet) {
+	if flagSet.NArg() < 1 {
+		flagSet.Usage()
+		os.Exit(2)
+	}
+	nameOrId := flagSet.Args()[0]
+
+	var uuid string
+	if config.IsUuid(nameOrId) {
+		uuid = nameOrId
+	} else {
+		var err error
+		uuid, err = getNetworkUuidByName(client,
+			commonOpts.project, commonOpts.project_id, nameOrId)
+		if err != nil {
+			fmt.Fprint(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+	// TODO: purge requires deleting all children before the object
+	client.DeleteByUuid("virtual-network", uuid)
+}
+
+func networkShow(client *contrail.Client, flagSet *flag.FlagSet) {
+	if flagSet.NArg() < 1 {
+		flagSet.Usage()
+		os.Exit(2)
+	}
+	nameOrId := flagSet.Args()[0]
+
+	var uuid string
+	if config.IsUuid(nameOrId) {
+		uuid = nameOrId
+	} else {
+		var err error
+		uuid, err = getNetworkUuidByName(client,
+			commonOpts.project, commonOpts.project_id, nameOrId)
+		if err != nil {
+			fmt.Fprint(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+
+	info, err := config.NetworkShow(client, uuid, showOpts.detail)
+	if err != nil {
+		fmt.Fprint(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	var tmpl string
+	if (showOpts.detail) {
+		tmpl = show_network_detail
+	} else {
+		tmpl = show_network_brief
+	}
+
+	t := template.Must(template.New("network-show").Parse(tmpl))
+	t.Execute(os.Stdout, info)
 }
 
 func initCommonFlags(flagSet *flag.FlagSet) {
@@ -69,10 +246,34 @@ func initCommonFlags(flagSet *flag.FlagSet) {
 }
 
 func init() {
+	listFlags := flag.NewFlagSet("network-list", flag.ExitOnError)
+	initCommonFlags(listFlags)
+	listFlags.BoolVar(&listOpts.allTenants, "all-tenants", false,
+		"Display networks for all tenants")
+	listFlags.BoolVar(&listOpts.brief, "brief", false,
+		"Multiline format")
+	listFlags.BoolVar(&listOpts.detail, "detail", false,
+		"Multiline format (detailed information)")
+	RegisterCliCommand("network-list", listFlags, networkList)
+
+	createFlags := flag.NewFlagSet("network-create", flag.ExitOnError)
+	initCommonFlags(createFlags)
+	createFlags.StringVar(&createOpts.subnet, "subnet", "",
+		"Subnet prefix for network")
+	createFlags.Usage = networkCreateUsage(createFlags)
+	RegisterCliCommand("network-create", createFlags, networkCreate)
+
+	deleteFlags := flag.NewFlagSet("network-delete", flag.ExitOnError)
+	initCommonFlags(deleteFlags)
+	deleteFlags.BoolVar(&deleteOpts.purge, "purge", false,
+		"Delete all dependent objects")
+	deleteFlags.Usage = nameOrIdUsage(deleteFlags)
+	RegisterCliCommand("network-delete", deleteFlags, networkDelete)
+
 	showFlags := flag.NewFlagSet("network-show", flag.ExitOnError)
 	initCommonFlags(showFlags)
-	showFlags.BoolVar(&showOpts.allTenants, "all-tenants", false,
-		"Display networks for all tenants")
-
-	RegisterCliCommand("network-show", showFlags, NetworkShow)
+	showFlags.BoolVar(&showOpts.detail, "detail", false,
+		"Detail output")
+	showFlags.Usage = nameOrIdUsage(showFlags)
+	RegisterCliCommand("network-show", showFlags, networkShow)
 }

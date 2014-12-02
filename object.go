@@ -6,9 +6,12 @@ package contrail
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"sort"
+	"strings"
 )
 
 // Interface implemented by auto-generated types.
@@ -128,6 +131,14 @@ func (obj *ObjectBase) UnmarshalCommon(m map[string]json.RawMessage) error {
 	err = json.Unmarshal(m["href"], &obj.href)
 	if err != nil {
 		return err
+	}
+	// Older versions of the API server have a bug generating the href
+	// on list commands
+	helements := strings.Split(obj.href, "/")
+	if (helements[len(helements)-1] != obj.uuid) {
+		fmt.Fprintf(os.Stderr, "WARN invalid href: %s\n", obj.href)
+		helements[len(helements)-1] = obj.uuid
+		obj.href = strings.Join(helements, "/")
 	}
 	return nil
 }

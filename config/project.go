@@ -8,22 +8,17 @@ import (
 	"contrail-go-api"
 	"contrail-go-api/types"
 	"fmt"
-	"regexp"
 	"strings"
 )
 
-const uuid_pattern = `([0-9a-z]{32})|([0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12})`
 func GetProjectId(
 	client *contrail.Client, project_name string, project_id string) (
 		string, error) {
 	if len(project_id) > 0 {
 		uuid := strings.ToLower(project_id)
-		matched, err := regexp.MatchString(uuid_pattern, uuid)
-		if err != nil {
-			return "", nil
-		}
-		if !matched {
-			return "", fmt.Errorf("Invalid uuid value: %s\n", uuid)
+		if !IsUuid(uuid) {
+			return "",
+			fmt.Errorf("Invalid uuid value: %s\n", uuid)
 		}
 		return uuid, nil
 	}
@@ -32,7 +27,7 @@ func GetProjectId(
 	if strings.ContainsRune(project_name, ':') {
 		name = project_name
 	} else {
-		obj := &types.Project{}
+		obj := new(types.Project)
 		fqn := append(obj.GetDefaultParent(), project_name)
 		name = strings.Join(fqn, `:`)
 	}
