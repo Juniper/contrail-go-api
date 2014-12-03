@@ -5,8 +5,8 @@
 package config
 
 import (
-	"contrail-go-api"
-	"contrail-go-api/types"
+	"github.com/Juniper/contrail-go-api"
+	"github.com/Juniper/contrail-go-api/types"
 	"fmt"
 	"strings"
 )

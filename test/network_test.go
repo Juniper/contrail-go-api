@@ -5,8 +5,8 @@
 package contrail
 
 import (
-	"contrail-go-api"
-	"contrail-go-api/config"
+	"github.com/Juniper/contrail-go-api"
+	"github.com/Juniper/contrail-go-api/config"
 	"fmt"
 	"testing"
 )
@@ -41,7 +41,7 @@ func TestNetworkList(t *testing.T) {
 		defer client.DeleteByUuid("virtual-network", nid)
 	}
 
-	netList, err := config.NetworkList(client, project_id)
+	netList, err := config.NetworkList(client, project_id, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestNetworkList(t *testing.T) {
 
 	for _, net := range netList {
 		fmt.Printf("%s %s %s\n", net.Uuid, net.Name, net.Subnets)
-		if data[net.Name].Subnet != net.Subnets {
+		if data[net.Name].Subnet != net.Subnets[0] {
 			t.Errorf("%s subnet %s, expected %s", net.Name,
 				net.Subnets, data[net.Name].Subnet)
 		}

@@ -5,9 +5,9 @@
 package main
 
 import (
-	"contrail-go-api"
-	"contrail-go-api/config"
-	"contrail-go-api/types"
+	"github.com/Juniper/contrail-go-api"
+	"github.com/Juniper/contrail-go-api/config"
+	"github.com/Juniper/contrail-go-api/types"
 	"flag"
 	"fmt"
 	"os"
