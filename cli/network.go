@@ -138,7 +138,7 @@ func networkCreate(client *contrail.Client, flagSet *flag.FlagSet) {
 	}
 }
 
-func nameOrIdUsage(argument *flag.FlagSet) func() {
+func networkNameOrIdUsage(argument *flag.FlagSet) func() {
 	flagSet := argument
 	return func() {
 		flagSet.PrintDefaults()
@@ -270,13 +270,13 @@ func init() {
 	initCommonFlags(deleteFlags)
 	deleteFlags.BoolVar(&networkDeleteOpts.purge, "purge", false,
 		"Delete all dependent objects")
-	deleteFlags.Usage = nameOrIdUsage(deleteFlags)
+	deleteFlags.Usage = networkNameOrIdUsage(deleteFlags)
 	RegisterCliCommand("network-delete", deleteFlags, networkDelete)
 
 	showFlags := flag.NewFlagSet("network-show", flag.ExitOnError)
 	initCommonFlags(showFlags)
 	showFlags.BoolVar(&networkShowOpts.detail, "detail", false,
 		"Detail output")
-	showFlags.Usage = nameOrIdUsage(showFlags)
+	showFlags.Usage = networkNameOrIdUsage(showFlags)
 	RegisterCliCommand("network-show", showFlags, networkShow)
 }

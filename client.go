@@ -368,8 +368,8 @@ func (c *Client) ListDetailByParent(
 	if len(parent_id) > 0 {
 		values.Add("parent_id", parent_id)
 	}
-	if len(fields) > 0 {
-		values.Add("fields", strings.Join(fields, ","))
+	for _, field := range fields {
+		values.Add("fields", field)
 	}
 	if count > 0 {
 		values.Add("count", strconv.Itoa(count))
