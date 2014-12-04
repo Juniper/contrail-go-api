@@ -66,6 +66,10 @@ func NewClient(server string, port int) *Client {
 	return client
 }
 
+func (client *Client) GetServer() string {
+	return client.server
+}
+
 func typename(ptr IObject) string {
 	name := reflect.TypeOf(ptr).Elem().Name()
 	var buf []rune

@@ -14,12 +14,14 @@ import (
 	"text/template"
 
 	"github.com/Juniper/contrail-go-api"
+	"github.com/Juniper/contrail-go-api/analytics"
 	"github.com/Juniper/contrail-go-api/config"
 	"github.com/Juniper/contrail-go-api/types"
 )
 
 type virtualRouterListOptions struct {
 	detail bool
+	analyticsServer string
 }
 
 type virtualRouterCreateOptions struct {
@@ -34,12 +36,51 @@ var (
 type virtualRouterInfo struct {
 	Name string
 	IpAddress string
+	Configured bool		// In config DB
+	Present bool		// Reported by analytics DB
+	Status string		// Analytics NodeStatus query result
 }
 
 const virtualRouterShowDetail = `  Name: {{.Name}}
-    IpAddress: {{.IpAddress}}
-
+    {{if .Configured}}IpAddress: {{.IpAddress}}{{else}}Error: Not present in configuration database{{end}}
+    {{if .Present}}Status: {{.Status}}{{end}}
 `
+
+func virtualRouterAnalyticsStatus(client *contrail.Client,
+	routerMap map[string]*virtualRouterInfo) {
+	// TODO: Try to hit the discvery port and discover the
+	// analytics api endpoint. Deployments may not collocate
+	// analytics and config.
+	var server string
+	if len(virtualRouterListOpts.analyticsServer) > 0 {
+		server = virtualRouterListOpts.analyticsServer
+	} else {
+		server = client.GetServer()
+	}
+	api := analytics.NewAnalyticsClient(
+		server,	analytics.AnalyticsDefaultPort)
+
+	routers, err := api.VirtualRouterList()
+	if err != nil {
+		return
+	}
+
+	for _, router := range routers {
+		info, ok := routerMap[router]
+		if !ok {
+			info = new(virtualRouterInfo)
+			info.Name = router
+			routerMap[router] = info
+		}
+		info.Present = true
+		status, err := api.VirtualRouterStatus(router)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			continue
+		}
+		info.Status = status
+	}
+}
 
 func virtualRouterList(client *contrail.Client, flagSet *flag.FlagSet) {
 	var fields []string
@@ -55,12 +96,14 @@ func virtualRouterList(client *contrail.Client, flagSet *flag.FlagSet) {
 	for _, obj := range routerList {
 		router := obj.(*types.VirtualRouter)
 		routerMap[router.GetName()] = &virtualRouterInfo{
-			router.GetName(),
-			router.GetVirtualRouterIpAddress(),
+			Name: router.GetName(),
+			IpAddress: router.GetVirtualRouterIpAddress(),
+			Configured: true,
 		}
 	}
 
-	// TODO: Get analytics information
+	// Get analytics information
+	virtualRouterAnalyticsStatus(client, routerMap)
 
 	var tmpl *template.Template
 	var wr *tabwriter.Writer
@@ -72,14 +115,15 @@ func virtualRouterList(client *contrail.Client, flagSet *flag.FlagSet) {
 	} else {
 		wr = new(tabwriter.Writer)
 		wr.Init(os.Stdout, 0, 0, 1, ' ', 0)
-		fmt.Fprintf(wr, "Hostname\tIpAddress\n")
+		fmt.Fprintf(wr, "Hostname\tIpAddress\tStatus\n")
 	}
 
 	for _, value := range routerMap {
 		if detail {
 			tmpl.Execute(os.Stdout, value)
 		} else {
-			fmt.Fprintf(wr, "%s\t%s\n", value.Name, value.IpAddress)
+			fmt.Fprintf(wr, "%s\t%s\t%s\n",
+				value.Name, value.IpAddress, value.Status)
 		}
 	}
 
@@ -153,6 +197,8 @@ func init() {
 	listFlags := flag.NewFlagSet("virtual-router-list", flag.ExitOnError)
 	listFlags.BoolVar(&virtualRouterListOpts.detail, "detail", false,
 		"Detailed information")
+	listFlags.StringVar(&virtualRouterListOpts.analyticsServer,
+		"analytics-server", "", "OpenContrail Analytics API server")
 	RegisterCliCommand("virtual-router-list", listFlags, virtualRouterList)
 
 	createFlags := flag.NewFlagSet("virtual-router-create",
