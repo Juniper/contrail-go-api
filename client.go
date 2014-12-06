@@ -7,7 +7,6 @@ package contrail
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -113,16 +112,18 @@ func (c *Client) Create(ptr IObject) error {
 	if err != nil {
 		return err
 	}
-	if resp.StatusCode != http.StatusOK {
-		return errors.New(resp.Status)
-	}
 
-	ptr.SetClient(c)
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s: %s", resp.Status, body)
+	}
+
+	ptr.SetClient(c)
+
 	var m map[string]json.RawMessage
 	err = json.Unmarshal(body, &m)
 	if err != nil {
@@ -143,14 +144,14 @@ func (c *Client) readObject(typename string, href string) (IObject, error) {
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Status)
-	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	var m map[string]*json.RawMessage
@@ -216,8 +217,14 @@ func (c *Client) Update(ptr IObject) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		return errors.New(resp.Status)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	err = ptr.UpdateReferences()
@@ -237,9 +244,16 @@ func (c *Client) DeleteByUuid(typename, uuid string) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		return errors.New(resp.Status)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("%s: %s", resp.Status, body)
 	}
+
 	return nil
 }
 
@@ -250,9 +264,16 @@ func (c *Client) Delete(ptr IObject) error {
 	if err != nil {
 		return err
 	}
+
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return errors.New(resp.Status)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("%s: %s", resp.Status, body)
 	}
+
 	return nil
 }
 
@@ -281,15 +302,14 @@ func (c *Client) UuidByName(typename string, fqn string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", errors.New(resp.Status)
-	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	m := struct {
@@ -301,6 +321,41 @@ func (c *Client) UuidByName(typename string, fqn string) (string, error) {
 	}
 
 	return m.Uuid, nil
+}
+
+func (c *Client) FQNameByUuid(uuid string) ([]string, error) {
+	request := struct {
+		Uuid string `json:"uuid"`
+	}{
+		uuid,
+	}
+
+	data, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	url := fmt.Sprintf("http://%s:%d/id-to-fqname", c.server, c.port)
+ 	resp, err := c.httpClient.Post(url, "application/json",
+		bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s: %s", resp.Status, body)
+	}
+
+	var response struct {
+		Type string
+		Fq_name []string
+	}
+	err = json.Unmarshal(body, &response)
+	return response.Fq_name, err
 }
 
 // Read an object identified by fully-qualified name represented as a
@@ -335,14 +390,15 @@ func (c *Client) ListByParent(
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Status)
-	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	var m map[string]*json.RawMessage
@@ -386,14 +442,15 @@ func (c *Client) ListDetailByParent(
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New(resp.Status)
-	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	var m map[string]*json.RawMessage
@@ -453,14 +510,15 @@ func (c *Client) GetField(obj IObject, field string) error {
 	if err != nil {
 		return err
 	}
-	if resp.StatusCode != http.StatusOK {
-		return errors.New(resp.Status)
-	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
 	var m map[string]json.RawMessage
@@ -485,9 +543,16 @@ func (c *Client) UpdateReference(msg *ReferenceUpdateMsg) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		return errors.New(resp.Status)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("%s: %s", resp.Status, body)
 	}
+
 	return nil
 }
 

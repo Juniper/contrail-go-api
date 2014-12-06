@@ -34,6 +34,26 @@ func GetProjectId(
 	return client.UuidByName("project", name)
 }
 
+func GetProjectFQN(
+	client *contrail.Client, projectName string, projectId string) (
+		[]string, error) {
+	if len(projectId) > 0 {
+		uuid := strings.ToLower(projectId)
+		if !IsUuid(uuid) {
+			return nil,
+			fmt.Errorf("Invalid uuid value: %s\n", uuid)
+		}
+		return client.FQNameByUuid(uuid)
+	}
+
+	if strings.ContainsRune(projectName, ':') {
+		return strings.Split(projectName, ":"), nil
+	}
+
+	obj := new(types.Project)
+	return append(obj.GetDefaultParent(), projectName), nil
+}
+
 // TODO: Create default security-group.
 func CreateProject(client *contrail.Client, name string, createIpam bool) (
 	string, error) {

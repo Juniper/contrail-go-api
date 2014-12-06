@@ -24,6 +24,7 @@ type IObject interface {
 	GetUuid() string
 	GetHref() string
 	SetName(string)
+	SetFQName(string, []string)
 
 	SetClient(ClientInterface)
 	UpdateObject() ([]byte, error)
@@ -86,9 +87,10 @@ func (obj *ObjectBase) GetHref() string {
 }
 
 // Set the fully qualified domain name.
-func (obj *ObjectBase) SetFQName(fqn []string) {
+func (obj *ObjectBase) SetFQName(parentType string, fqn []string) {
 	obj.fq_name = fqn
 	obj.name = fqn[len(fqn) - 1]
+	obj.parent_type = parentType
 }
 
 func (obj *ObjectBase) GetFQName() []string {
