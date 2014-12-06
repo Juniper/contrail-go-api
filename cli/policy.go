@@ -35,6 +35,11 @@ type policyListOptions struct {
 	detail bool
 }
 
+type policyAttachOptions struct {
+	policy string
+	network string
+}
+
 type policyProtocolValue string
 type policyPortValue int
 
@@ -70,6 +75,7 @@ var (
 	policyOpOpts policyOpOptions
 	policyListOpts policyListOptions
 	policyRuleOpts policyRuleOptions
+	policyAttachOpts policyAttachOptions
 )
 
 const policyShowTmpl = `
@@ -237,31 +243,19 @@ func policyCreate(client *contrail.Client, flagSet *flag.FlagSet) {
 
 // Delete an existing network-policy
 func policyDelete(client *contrail.Client, flagSet *flag.FlagSet) {
-	nameOrId := policyOpOpts.policy
-	if len(nameOrId) == 0 {
+	if len(policyOpOpts.policy) == 0 {
 		fmt.Fprintf(os.Stderr, "policy name or uuid must be specified")
 		os.Exit(2)
 	}
 
-	uuid := strings.ToLower(nameOrId)
-	if !config.IsUuid(uuid) {
-		fqn, err := config.GetProjectFQN(client,
-			policyCommonOpts.project,
-			policyCommonOpts.projectId)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		fqn = append(fqn, nameOrId)
-		uuid, err = client.UuidByName("network-policy",
-			strings.Join(fqn, ":"))
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
+	uuid, err := getPolicyId(client, policyCommonOpts.project,
+		policyCommonOpts.projectId, policyOpOpts.policy)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 
-	err := client.DeleteByUuid("network-policy", uuid)
+	err = client.DeleteByUuid("network-policy", uuid)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -296,6 +290,26 @@ func getPolicyObject(
 		return nil, err
 	}
 	return obj.(*types.NetworkPolicy), nil
+}
+
+func getPolicyId(client *contrail.Client,
+	projectName, projectId, policyNameOrId string) (
+		string, error) {
+
+	uuid := strings.ToLower(policyNameOrId)
+	if !config.IsUuid(uuid) {
+		fqn, err := config.GetProjectFQN(client, projectName, projectId)
+		if err != nil {
+			return "", err
+		}
+		fqn = append(fqn, policyNameOrId)
+		uuid, err = client.UuidByName("network-policy",
+			strings.Join(fqn, ":"))
+		if err != nil {
+			return "", err
+		}
+	}
+	return uuid, nil
 }
 
 // Parse command line arguments and set the Address field in the rule.
@@ -517,6 +531,74 @@ func policyRuleDelete(client *contrail.Client, flagSet *flag.FlagSet) {
 	}
 }
 
+func policyAttachNetwork(client *contrail.Client) *types.VirtualNetwork {
+	if len(policyAttachOpts.network) == 0 {
+		fmt.Fprintf(os.Stderr, "network name or id must be specified")
+		os.Exit(2)
+	}
+	uuid := policyAttachOpts.network
+	if !config.IsUuid(uuid) {
+		var err error
+		uuid, err = getNetworkUuidByName(client,
+			policyCommonOpts.project,
+			policyCommonOpts.projectId,
+			policyAttachOpts.network)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+
+	obj, err := client.FindByUuid("virtual-network", uuid)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	return obj.(*types.VirtualNetwork)
+
+}
+func policyAttach(client *contrail.Client, flagSet *flag.FlagSet) {
+	network := policyAttachNetwork(client)
+
+	policy, err := getPolicyObject(client,
+		policyCommonOpts.project,
+		policyCommonOpts.projectId,
+		policyAttachOpts.policy)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	network.AddNetworkPolicy(policy, types.VirtualNetworkPolicyType{})
+	err = client.Update(network)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func policyDetach(client *contrail.Client, flagSet *flag.FlagSet) {
+	network := policyAttachNetwork(client)
+	policyId, err := getPolicyId(client,
+		policyCommonOpts.project,
+		policyCommonOpts.projectId,
+		policyAttachOpts.policy)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	err = network.DeleteNetworkPolicy(policyId)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	err = client.Update(network)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
 func policyInitCommonOptions(flagSet *flag.FlagSet) {
 	defaultProject := os.Getenv("OS_TENANT_NAME")
 	if len(defaultProject) == 0 {
@@ -653,4 +735,21 @@ func init() {
 		"Rule uuid to delete")
 	RegisterCliCommand("policy-rule-delete", ruleDeleteFlags,
 		policyRuleDelete)
+
+	attachFlags := flag.NewFlagSet("policy-attach", flag.ExitOnError)
+	policyInitCommonOptions(attachFlags)
+	attachFlags.StringVar(&policyAttachOpts.policy, "policy", "",
+		"Policy name or uuid")
+	attachFlags.StringVar(&policyAttachOpts.network, "network", "",
+		"Network name or uuid")
+	RegisterCliCommand("policy-attach", attachFlags, policyAttach)
+
+	detachFlags := flag.NewFlagSet("policy-detach", flag.ExitOnError)
+	policyInitCommonOptions(detachFlags)
+	detachFlags.StringVar(&policyAttachOpts.policy, "policy", "",
+		"Policy name or uuid")
+	detachFlags.StringVar(&policyAttachOpts.network, "network", "",
+		"Network name or uuid")
+	RegisterCliCommand("policy-detach", detachFlags, policyDetach)
+
 }
