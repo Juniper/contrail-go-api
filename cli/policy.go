@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"text/template"
 
+	"code.google.com/p/go-uuid/uuid"
 	"github.com/Juniper/contrail-go-api"
 	"github.com/Juniper/contrail-go-api/config"
 	"github.com/Juniper/contrail-go-api/types"
@@ -22,6 +24,10 @@ import (
 type policyCommonOptions struct {
 	project string
 	projectId string
+}
+
+type policyOpOptions struct {
+	policy string
 }
 
 type policyListOptions struct {
@@ -40,6 +46,8 @@ var protocolValues = map[string]int{
 }
 
 type policyRuleOptions struct {
+	ruleId string
+	afterRule string
 	policy string
 	srcIpAddress string
 	srcNetwork string
@@ -59,6 +67,7 @@ type policyRuleOptions struct {
 
 var (
 	policyCommonOpts policyCommonOptions
+	policyOpOpts policyOpOptions
 	policyListOpts policyListOptions
 	policyRuleOpts policyRuleOptions
 )
@@ -83,6 +92,8 @@ const policyShowDetail = `  Policy: {{.GetName}}
 
 `
 
+// Retrieves the virtual-network references from the policy rules
+// for display purposes.
 func getRulesNetworks(policy *types.NetworkPolicy) (string, string) {
 	displayValue := func (m map[string]bool) string {
 		if len(m) > 1 {
@@ -113,6 +124,7 @@ func getRulesNetworks(policy *types.NetworkPolicy) (string, string) {
 	return source, destination
 }
 
+// Summary information of the network policies configured (per project)
 func policyListTerse(client *contrail.Client, projectId string) {
 	poList, err := client.ListDetailByParent(
 		"network-policy", projectId, nil, 0)
@@ -133,6 +145,17 @@ func policyListTerse(client *contrail.Client, projectId string) {
 	writer.Flush()
 }
 
+func makeShowTemplate() *template.Template {
+	fm := template.FuncMap{
+		"join": strings.Join,
+	}
+	tmpl := template.Must(template.New("policy-list").Funcs(fm).Parse(
+		policyShowTmpl))
+	tmpl.Parse(policyShowDetail)
+	return tmpl
+}
+
+// Display the rules associated with a policy as well as the attached networks.
 func policyListDetail(client *contrail.Client, projectId string) {
 	poList, err := client.ListDetailByParent(
 		"network-policy", projectId,
@@ -141,18 +164,14 @@ func policyListDetail(client *contrail.Client, projectId string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-
-	fm := template.FuncMap{
-		"join": strings.Join,
-	}
-	tmpl := template.Must(template.New("policy-list").Funcs(fm).Parse(
-		policyShowTmpl))
-	tmpl.Parse(policyShowDetail)
+	tmpl := makeShowTemplate()
 	for _, policy := range poList {
 		tmpl.Execute(os.Stdout, policy)
 	}
 }
 
+// List all the policies under a specific project (or all projects if
+// all-tenants is specified.
 func policyList(client *contrail.Client, flagSet *flag.FlagSet) {
 	var projectId string
 
@@ -174,9 +193,24 @@ func policyList(client *contrail.Client, flagSet *flag.FlagSet) {
 	}
 }
 
+// Detailed output for a specific policy
 func policyShow(client *contrail.Client, flagSet *flag.FlagSet) {
+	policy, err := getPolicyObject(
+		client,
+		policyCommonOpts.project,
+		policyCommonOpts.projectId,
+		policyOpOpts.policy)
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	tmpl := makeShowTemplate()
+	tmpl.Execute(os.Stdout, policy)
 }
 
+// Create (an empty) network-policy.
 func policyCreate(client *contrail.Client, flagSet *flag.FlagSet) {
 	if flagSet.NArg() < 1 {
 		flagSet.Usage()
@@ -201,9 +235,40 @@ func policyCreate(client *contrail.Client, flagSet *flag.FlagSet) {
 	}
 }
 
+// Delete an existing network-policy
 func policyDelete(client *contrail.Client, flagSet *flag.FlagSet) {
+	nameOrId := policyOpOpts.policy
+	if len(nameOrId) == 0 {
+		fmt.Fprintf(os.Stderr, "policy name or uuid must be specified")
+		os.Exit(2)
+	}
+
+	uuid := strings.ToLower(nameOrId)
+	if !config.IsUuid(uuid) {
+		fqn, err := config.GetProjectFQN(client,
+			policyCommonOpts.project,
+			policyCommonOpts.projectId)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fqn = append(fqn, nameOrId)
+		uuid, err = client.UuidByName("network-policy",
+			strings.Join(fqn, ":"))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+
+	err := client.DeleteByUuid("network-policy", uuid)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
 
+// Locate the policy given project name/id and policy name/id.
 func getPolicyObject(
 	client *contrail.Client,
 	projectName, projectId, policyNameOrId string) (
@@ -233,22 +298,66 @@ func getPolicyObject(
 	return obj.(*types.NetworkPolicy), nil
 }
 
+// Parse command line arguments and set the Address field in the rule.
+func makeAddresses(optAddress, optNetwork string) []types.AddressType {
+	addresses := make([]types.AddressType, 1)
+	address := &addresses[0]
+
+	if len(optAddress) > 0 {
+		comp := strings.Split(optAddress, "/")
+		if len(comp) != 2 {
+			fmt.Fprintf(os.Stderr,
+				"Expected IP prefix in the format n.n.n.n/n" +
+				", got %s\n", optAddress)
+			os.Exit(2)
+		}
+		matched, _ := regexp.MatchString(config.IpAddressPattern,
+			comp[0])
+		if !matched {
+			fmt.Fprintf(os.Stderr, "Invalid IP address: %s\n",
+			comp[0])
+			os.Exit(2)
+		}
+		address.Subnet.IpPrefix = comp[0]
+		var err error
+		address.Subnet.IpPrefixLen, err = strconv.Atoi(comp[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid prefix length")
+			os.Exit(2)
+		}
+	}
+	if len(optNetwork) > 0 {
+		address.VirtualNetwork = optNetwork
+	} else {
+		address.VirtualNetwork = "any"
+	}
+	return addresses
+}
+
+// Helper for ports.
+// TODO: handle ranges.
+func makePorts(optPort policyPortValue) []types.PortType {
+	var portList []types.PortType
+	if optPort > 0 {
+		portList = make([]types.PortType, 1)
+		portList[0] = types.PortType{
+			int(optPort),
+			int(optPort),
+		}
+	}
+	return portList
+}
+
 func makePolicyRule(opts *policyRuleOptions) *types.PolicyRuleType {
 	rule := new(types.PolicyRuleType)
 	// RuleSequence
-	// RuleUuid
+	rule.RuleUuid = uuid.NewRandom().String()
 	rule.Direction = `<>`
-	rule.Protocol = fmt.Sprintf("%d", opts.protocol)
-	if len(opts.srcIpAddress) > 0 {
-	} else if len(opts.srcNetwork) > 0 {
-	}
-	if opts.srcPort > 0 {
-		rule.SrcPorts = make([]types.PortType, 1)
-		rule.SrcPorts[0] = types.PortType{
-			int(opts.srcPort),
-			int(opts.srcPort),
-		}
-	}
+	rule.Protocol = string(opts.protocol)
+	rule.SrcAddresses = makeAddresses(opts.srcIpAddress, opts.srcNetwork)
+	rule.DstAddresses = makeAddresses(opts.dstIpAddress, opts.dstNetwork)
+	rule.SrcPorts = makePorts(opts.srcPort)
+	rule.DstPorts = makePorts(opts.dstPort)
 	if opts.actionDrop {
 		rule.ActionList.SimpleAction = "drop"
 	} else {
@@ -257,6 +366,7 @@ func makePolicyRule(opts *policyRuleOptions) *types.PolicyRuleType {
 	return rule
 }
 
+// Add a rule to an existing policy
 func policyRuleAdd(client *contrail.Client, flagSet *flag.FlagSet) {
 	policy, err := getPolicyObject(
 		client,
@@ -270,7 +380,34 @@ func policyRuleAdd(client *contrail.Client, flagSet *flag.FlagSet) {
 	entries := policy.GetNetworkPolicyEntries()
 	rule := makePolicyRule(&policyRuleOpts)
 
-	entries.AddPolicyRule(rule)
+	insertRule := func (list []types.PolicyRuleType, i int,
+		rule *types.PolicyRuleType) []types.PolicyRuleType {
+			return append(list[:i+1],
+				append([]types.PolicyRuleType{*rule},
+					list[i+1:]...)...)
+	}
+	if uuid := policyRuleOpts.afterRule; len(uuid) > 0 {
+		matched, _ := regexp.MatchString(config.UuidPattern, uuid)
+		if !matched {
+			fmt.Fprintf(os.Stderr, "Invalid rule uuid %s\n", uuid)
+			os.Exit(2)
+		}
+		var ok bool
+		for i, entry := range entries.PolicyRule {
+			if entry.RuleUuid == uuid {
+				entries.PolicyRule = 
+					insertRule(entries.PolicyRule, i, rule)
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Rule uuid %s not found\n", uuid)
+			os.Exit(2)
+		}
+	} else {
+		entries.AddPolicyRule(rule)
+	}
 	policy.SetNetworkPolicyEntries(&entries)
 	err = client.Update(policy)
 	if err != nil {
@@ -279,10 +416,105 @@ func policyRuleAdd(client *contrail.Client, flagSet *flag.FlagSet) {
 	}
 }
 
+// Update a rule.
 func policyRuleUpdate(client *contrail.Client, flagSet *flag.FlagSet) {
+	policy, err := getPolicyObject(
+		client,
+		policyCommonOpts.project,
+		policyCommonOpts.projectId,
+		policyRuleOpts.policy)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	uuid := policyRuleOpts.ruleId
+	matched, _ := regexp.MatchString(config.UuidPattern, uuid)
+	if !matched {
+		if len(uuid) == 0 {
+			fmt.Fprintln(os.Stderr, "Unspecified rule uuid")
+		} else {
+			fmt.Fprintf(os.Stderr, "Invalid uuid: %s\n", uuid)
+		}
+		os.Exit(2)
+	}
+
+	rule := makePolicyRule(&policyRuleOpts)
+
+	var ok bool
+	entries := policy.GetNetworkPolicyEntries()
+	for i, entry := range entries.PolicyRule {
+		if entry.RuleUuid == uuid {
+			entries.PolicyRule[i] = *rule
+			ok = true
+			break
+		}
+	}
+
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Rule uuid %s not found\n", uuid)
+		os.Exit(2)
+	}
+
+	policy.SetNetworkPolicyEntries(&entries)
+	err = client.Update(policy)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
 }
 
+// Delete the specified policy rule
 func policyRuleDelete(client *contrail.Client, flagSet *flag.FlagSet) {
+	policy, err := getPolicyObject(
+		client,
+		policyCommonOpts.project,
+		policyCommonOpts.projectId,
+		policyRuleOpts.policy)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	uuid := policyRuleOpts.ruleId
+	matched, _ := regexp.MatchString(config.UuidPattern, uuid)
+	if !matched {
+		if len(uuid) == 0 {
+			fmt.Fprintln(os.Stderr, "Unspecified rule uuid")
+		} else {
+			fmt.Fprintf(os.Stderr, "Invalid uuid: %s\n", uuid)
+		}
+		os.Exit(2)
+	}
+
+	deleteRule := func (list []types.PolicyRuleType, i int) (
+		[]types.PolicyRuleType) {
+			return append(list[:i], list[i+1:]...)
+	}
+
+	var ok bool
+	entries := policy.GetNetworkPolicyEntries()
+	for i, entry := range entries.PolicyRule {
+		if entry.RuleUuid == uuid {
+			entries.PolicyRule = 
+				deleteRule(entries.PolicyRule, i)
+			ok = true
+			break
+		}
+	}
+
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Rule uuid %s not found\n", uuid)
+		os.Exit(2)
+	}
+
+	policy.SetNetworkPolicyEntries(&entries)
+	err = client.Update(policy)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
 
 func policyInitCommonOptions(flagSet *flag.FlagSet) {
@@ -380,6 +612,9 @@ func init() {
 	RegisterCliCommand("policy-list", listFlags, policyList)
 
 	showFlags := flag.NewFlagSet("policy-show", flag.ExitOnError)
+	policyInitCommonOptions(showFlags)
+	showFlags.StringVar(&policyOpOpts.policy, "policy", "",
+		"Policy name or uuid")
 	RegisterCliCommand("policy-show", showFlags, policyShow)
 
 	createFlags := flag.NewFlagSet("policy-create", flag.ExitOnError)
@@ -388,21 +623,34 @@ func init() {
 	RegisterCliCommand("policy-create", createFlags, policyCreate)
 
 	deleteFlags := flag.NewFlagSet("policy-delete", flag.ExitOnError)
+	policyInitCommonOptions(deleteFlags)
+	deleteFlags.StringVar(&policyOpOpts.policy, "policy", "",
+		"Policy name or uuid")
 	RegisterCliCommand("policy-delete", deleteFlags, policyDelete)
 
 	ruleAddFlags := flag.NewFlagSet("policy-rule-add", flag.ExitOnError)
 	policyInitCommonOptions(ruleAddFlags)
 	policyRuleAddUpdateInitOptions(ruleAddFlags)
+	ruleAddFlags.StringVar(&policyRuleOpts.afterRule, "after", "",
+		"Add new rule after the rule with the specified uuid")
 	RegisterCliCommand("policy-rule-add", ruleAddFlags, policyRuleAdd)
 
 	ruleUpdateFlags := flag.NewFlagSet("policy-rule-update",
 		flag.ExitOnError)
+	policyInitCommonOptions(ruleUpdateFlags)
 	policyRuleAddUpdateInitOptions(ruleUpdateFlags)
+	ruleUpdateFlags.StringVar(&policyRuleOpts.ruleId, "rule", "",
+		"Rule uuid to update")
 	RegisterCliCommand("policy-rule-update", ruleUpdateFlags,
 		policyRuleUpdate)
 
 	ruleDeleteFlags := flag.NewFlagSet("policy-rule-delete",
 		flag.ExitOnError)
+	policyInitCommonOptions(ruleDeleteFlags)
+	ruleDeleteFlags.StringVar(&policyRuleOpts.policy, "policy", "",
+		"Policy name or uuid")
+	ruleDeleteFlags.StringVar(&policyRuleOpts.ruleId, "rule", "",
+		"Rule uuid to delete")
 	RegisterCliCommand("policy-rule-delete", ruleDeleteFlags,
 		policyRuleDelete)
 }
