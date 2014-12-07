@@ -7,7 +7,6 @@ package contrail
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"reflect"
 	"sort"
@@ -103,13 +102,6 @@ func (obj *ObjectBase) SetClient(c ClientInterface) {
 
 func (obj *ObjectBase) IsTransient() bool {
 	return obj.clientPtr == nil
-}
-
-func (obj *ObjectBase) HttpClient() *http.Client {
-	if obj.clientPtr != nil {
-		return obj.clientPtr.GetHttpClient()
-	}
-	return nil
 }
 
 func (obj *ObjectBase) GetField(ptr IObject, field string) error {

@@ -28,13 +28,12 @@ var (
 	/*
 	 * Authentication
 	 */
-	os_auth_strategy string
+	// os_auth_strategy string
 	os_auth_url string
 	os_tenant_name string
 	os_tenant_id string
 	os_username string
 	os_password string
-	os_region_name string
 	os_token string
 
 	commandMap map[string]CliCommand = make(map[string]CliCommand, 0)
@@ -50,13 +49,13 @@ func InitFlags() {
 	flag.IntVar(&oc_port, "port", 8082,
 		"OpenContrail API server port")
 
-	default_strategy := os.Getenv("OS_AUTH_STRATEGY")
-	if len(default_strategy) == 0 {
-		default_strategy = "keystone"
-	}
-	flag.StringVar(&os_auth_strategy,
-		"os-auth-strategy", default_strategy,
-		"Authentication strategy (Env: OS_AUTH_STRATEGY)")
+	// default_strategy := os.Getenv("OS_AUTH_STRATEGY")
+	// if len(default_strategy) == 0 {
+	// 	default_strategy = "keystone"
+	// }
+	// flag.StringVar(&os_auth_strategy,
+	// 	"os-auth-strategy", default_strategy,
+	// 	"Authentication strategy (Env: OS_AUTH_STRATEGY)")
 	flag.StringVar(&os_auth_url,
 		"os-auth-url", os.Getenv("OS_AUTH_URL"),
 		"Authentication URL (Env: OS_AUTH_URL)")
@@ -72,12 +71,25 @@ func InitFlags() {
 	flag.StringVar(&os_password,
 		"os-password", os.Getenv("OS_PASSWORD"),
 		"Authentication password (Env: OS_PASSWORD)")
-	flag.StringVar(&os_region_name,
-		"os-region-name", os.Getenv("OS_REGION_NAME"),
-		"Authentication region name (Env: OS_REGION_NAME)")
 	flag.StringVar(&os_token,
 		"os-token", os.Getenv("OS_TOKEN"),
 		"Authentication URL (Env: OS_TOKEN)")
+}
+
+func setupAuthKeystone(client *contrail.Client) {
+	keystone := contrail.NewKeystoneClient(
+		os_auth_url,
+		os_tenant_name,
+		os_username,
+		os_password,
+		os_token,
+	)
+	err := keystone.Authenticate()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	client.SetAuthenticator(keystone)
 }
 
 func usage() {
@@ -109,7 +121,9 @@ func main() {
 	flagSet.Parse(flag.Args()[1:])
 
 	client := contrail.NewClient(oc_server, oc_port)
-	// TODO: setup authentication
+	if len(os_auth_url) > 0 {
+		setupAuthKeystone(client)
+	}
 
 	cmd.exec(client, flagSet)
 }

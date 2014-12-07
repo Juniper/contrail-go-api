@@ -6,7 +6,6 @@ package contrail
 
 import (
 	"fmt"
-	"net/http"
 	"testing"
 )
 
@@ -38,9 +37,6 @@ type MockClient struct {
 	messages []ReferenceUpdateMsg
 }
 
-func (*MockClient) GetHttpClient() *http.Client {
-	return nil
-}
 func (*MockClient) GetField(obj IObject, field string) error {
 	return nil
 }

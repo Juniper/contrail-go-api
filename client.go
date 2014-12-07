@@ -8,12 +8,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"reflect"
-	"strings"
 	"strconv"
+	"strings"
 	"unicode"
 )
 
@@ -30,9 +31,19 @@ type TypeMap map[string]reflect.Type
 //
 // The ObjectBase type includes a reference to this interface.
 type ClientInterface interface {
-	GetHttpClient() *http.Client
 	GetField(IObject, string) error
 	UpdateReference(*ReferenceUpdateMsg) error
+}
+
+type Authenticator interface {
+	AddAuthentication(*http.Request) error
+}
+
+type NopAuthenticator struct {
+}
+
+func (*NopAuthenticator) AddAuthentication(*http.Request) error {
+	return nil
 }
 
 // A client of the OpenContrail API server.
@@ -40,6 +51,7 @@ type Client struct {
 	server string
 	port   int
 	httpClient *http.Client
+	auth Authenticator
 }
 
 // The Client List API returns an array of ListResult entries.
@@ -62,11 +74,16 @@ func NewClient(server string, port int) *Client {
 	client.server = server
 	client.port = port
 	client.httpClient = &http.Client{}
+	client.auth = new(NopAuthenticator)
 	return client
 }
 
 func (client *Client) GetServer() string {
 	return client.server
+}
+
+func (client *Client) SetAuthenticator(auth Authenticator) {
+	client.auth = auth
 }
 
 func typename(ptr IObject) string {
@@ -85,8 +102,56 @@ func typename(ptr IObject) string {
 	return string(buf)
 }
 
-func (c *Client) GetHttpClient() *http.Client {
-	return c.httpClient
+func (c *Client) httpPost(url string, bodyType string, body io.Reader) (
+	*http.Response, error) {
+	req, err := http.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", bodyType)
+	err = c.auth.AddAuthentication(req)
+	if err != nil {
+		return nil, err
+	}
+	return c.httpClient.Do(req)
+}
+
+func (c *Client) httpPut(url string, bodyType string, body io.Reader) (
+	*http.Response, error) {
+	req, err := http.NewRequest("PUT", url, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", bodyType)
+	err = c.auth.AddAuthentication(req)
+	if err != nil {
+		return nil, err
+	}
+	return c.httpClient.Do(req)
+}
+
+func (c *Client) httpGet(url string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	err = c.auth.AddAuthentication(req)
+	if err != nil {
+		return nil, err
+	}
+	return c.httpClient.Do(req)
+}
+
+func (c *Client) httpDelete(url string) (*http.Response, error) {
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	err = c.auth.AddAuthentication(req)
+	if err != nil {
+		return nil, err
+	}
+	return c.httpClient.Do(req)
 }
 
 // Create an object in the OpenContrail API server.
@@ -107,8 +172,7 @@ func (c *Client) Create(ptr IObject) error {
 	}
 	data, err := json.Marshal(msg)
 
-	resp, err := c.httpClient.Post(url, "application/json",
-		bytes.NewReader(data))
+	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -140,7 +204,7 @@ func (c *Client) Create(ptr IObject) error {
 func (c *Client) readObject(typename string, href string) (IObject, error) {
 	url := fmt.Sprintf("%s?exclude_back_refs=true&exclude_children=true",
 		href)
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.httpGet(url)
 	if err != nil {
 		return nil, err
 	}
@@ -208,12 +272,9 @@ func (c *Client) Update(ptr IObject) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("PUT", ptr.GetHref(), bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.httpClient.Do(req)
+
+	resp, err := c.httpPut(ptr.GetHref(), "application/json",
+		bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -239,8 +300,7 @@ func (c *Client) Update(ptr IObject) error {
 func (c *Client) DeleteByUuid(typename, uuid string) error {
 	url := fmt.Sprintf("http://%s:%d/%s/%s",
 		c.server, c.port, typename, uuid)
-	req, err := http.NewRequest("DELETE", url, nil)
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpDelete(url)
 	if err != nil {
 		return err
 	}
@@ -259,8 +319,7 @@ func (c *Client) DeleteByUuid(typename, uuid string) error {
 
 // Delete an object from the API server.
 func (c *Client) Delete(ptr IObject) error {
-	req, err := http.NewRequest("DELETE", ptr.GetHref(), nil)
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpDelete(ptr.GetHref())
 	if err != nil {
 		return err
 	}
@@ -297,8 +356,7 @@ func (c *Client) UuidByName(typename string, fqn string) (string, error) {
 	if err != nil {
 		return "", err
 	}
- 	resp, err := c.httpClient.Post(url, "application/json",
-		bytes.NewReader(data))
+ 	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return "", err
 	}
@@ -335,8 +393,7 @@ func (c *Client) FQNameByUuid(uuid string) ([]string, error) {
 		return nil, err
 	}
 	url := fmt.Sprintf("http://%s:%d/id-to-fqname", c.server, c.port)
- 	resp, err := c.httpClient.Post(url, "application/json",
-		bytes.NewReader(data))
+ 	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +443,7 @@ func (c *Client) ListByParent(
 	if len(values) > 0 {
 		url += fmt.Sprintf("?%s", values.Encode())
 	}
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.httpGet(url)
 	if err != nil {
 		return nil, err
 	}
@@ -438,7 +495,7 @@ func (c *Client) ListDetailByParent(
 
 	url := fmt.Sprintf("http://%s:%d/%ss?%s",
 		c.server, c.port, typename, values.Encode())
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.httpGet(url)
 	if err != nil {
 		return nil, err
 	}
@@ -506,7 +563,7 @@ func (c *Client) ListDetail(typename string, fields []string, count int) (
 // Retrieve a specified field of an object from the API server.
 func (c *Client) GetField(obj IObject, field string) error {
 	url := fmt.Sprintf("%s?fields=%s", obj.GetHref(), field)
-	resp, err := c.httpClient.Get(url)
+	resp, err := c.httpGet(url)
 	if err != nil {
 		return err
 	}
@@ -538,8 +595,7 @@ func (c *Client) UpdateReference(msg *ReferenceUpdateMsg) error {
 		return err
 	}
 	url := fmt.Sprintf("http://%s:%d/ref-update", c.server, c.port)
-	resp, err := c.httpClient.Post(url, "application/json",
-		bytes.NewReader(data))
+	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
