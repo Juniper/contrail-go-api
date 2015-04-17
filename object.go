@@ -23,6 +23,7 @@ type IObject interface {
 	GetUuid() string
 	GetHref() string
 	SetName(string)
+	SetUuid(string)
 	SetFQName(string, []string)
 
 	SetClient(ClientInterface)
@@ -79,6 +80,15 @@ func (obj *ObjectBase) GetName() string {
 func (obj *ObjectBase) GetUuid() string {
 	return obj.uuid
 }
+
+// Setter for uuid.
+func (obj *ObjectBase) SetUuid(uuid string) {
+	if obj.clientPtr != nil {
+		panic(fmt.Sprintf("Attempt to override uuid for %s", obj.uuid))
+	}
+	obj.uuid = uuid
+}
+
 
 // Accessor for href.
 func (obj *ObjectBase) GetHref() string {
