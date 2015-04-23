@@ -56,12 +56,14 @@ type ObjectBase struct {
 func (obj *ObjectBase) VSetName(vPtr IObject, name string) {
 	obj.name = name
 	if obj.parent != nil {
-		obj.fq_name = make([]string, len(obj.parent.GetFQName()) + 1)
+		size := len(obj.parent.GetFQName())
+		obj.fq_name = make([]string, size, size + 1)
 		copy(obj.fq_name, obj.parent.GetFQName())
 		obj.fq_name = append(obj.fq_name, name)
 		obj.parent_type = obj.parent.GetType()
 	} else {
-		obj.fq_name = make([]string, len(vPtr.GetDefaultParent()) + 1)
+		size := len(vPtr.GetDefaultParent())
+		obj.fq_name = make([]string, size, size + 1)
 		copy(obj.fq_name, vPtr.GetDefaultParent())
 		obj.fq_name = append(obj.fq_name, name)
 		obj.parent_type = vPtr.GetDefaultParentType()
