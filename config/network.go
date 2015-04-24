@@ -145,7 +145,7 @@ func CreateNetworkWithSubnet(
 	subnets := types.VnSubnetsType{}
 	subnets.AddIpamSubnets(
 		&types.IpamSubnetType{
-			Subnet: types.SubnetType{address, prefixlen}})
+			Subnet: &types.SubnetType{address, prefixlen}})
 	net.AddNetworkIpam(ipam, subnets)
 	err = client.Create(net)
 	if err != nil {
