@@ -27,10 +27,9 @@ import (
 // Each auto-generated type implements the IObject interface.
 type TypeMap map[string]reflect.Type
 
-// ClientInterface defines the interface used by the contrail API client.
-//
-// The ObjectBase type includes a reference to this interface.
-type ClientInterface interface {
+// objectInterface defines the interface used internally between
+// ObjectBase and Client implmementation
+type objectInterface interface {
 	GetField(IObject, string) error
 	UpdateReference(*ReferenceUpdateMsg) error
 }
@@ -46,19 +45,35 @@ func (*NopAuthenticator) AddAuthentication(*http.Request) error {
 	return nil
 }
 
+// ApiClient interface
+type ApiClient interface {
+	Create(ptr IObject) error
+	Update(ptr IObject) error
+	DeleteByUuid(typename, uuid string) error
+	Delete(ptr IObject) error
+	FindByUuid(typename string, uuid string) (IObject, error)
+	UuidByName(typename string, fqn string) (string, error)
+	FQNameByUuid(uuid string) ([]string, error)
+	FindByName(typename string, fqn string) (IObject, error)
+	List(typename string, count int) ([]ListResult, error)
+	ListByParent(typename string, parent_id string, count int) ([]ListResult, error)
+	ListDetail(typename string, fields []string, count int) ([]IObject, error)
+	ListDetailByParent(typename string, parent_id string, fields []string, count int) ([]IObject, error)
+}
+
 // A client of the OpenContrail API server.
 type Client struct {
-	server string
-	port   int
+	server     string
+	port       int
 	httpClient *http.Client
-	auth Authenticator
+	auth       Authenticator
 }
 
 // The Client List API returns an array of ListResult entries.
 type ListResult struct {
 	Fq_name []string
-	Href string
-	Uuid string
+	Href    string
+	Uuid    string
 }
 
 var (
@@ -167,7 +182,7 @@ func (c *Client) Create(ptr IObject) error {
 	}
 
 	var rawJson json.RawMessage = objJson
-	msg := map[string]*json.RawMessage {
+	msg := map[string]*json.RawMessage{
 		xtype: &rawJson,
 	}
 	data, err := json.Marshal(msg)
@@ -265,7 +280,7 @@ func (c *Client) Update(ptr IObject) error {
 		return err
 	}
 	var rawJson json.RawMessage = objJson
-	msg := map[string]*json.RawMessage {
+	msg := map[string]*json.RawMessage{
 		ptr.GetType(): &rawJson,
 	}
 	data, err := json.Marshal(msg)
@@ -346,8 +361,8 @@ func (c *Client) FindByUuid(typename string, uuid string) (IObject, error) {
 func (c *Client) UuidByName(typename string, fqn string) (string, error) {
 	url := fmt.Sprintf("http://%s:%d/fqname-to-id", c.server, c.port)
 	request := struct {
-		Typename string `json:"type"`
-		Fq_name []string `json:"fq_name"`
+		Typename string   `json:"type"`
+		Fq_name  []string `json:"fq_name"`
 	}{
 		typename,
 		strings.Split(fqn, ":"),
@@ -356,7 +371,7 @@ func (c *Client) UuidByName(typename string, fqn string) (string, error) {
 	if err != nil {
 		return "", err
 	}
- 	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
+	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return "", err
 	}
@@ -393,7 +408,7 @@ func (c *Client) FQNameByUuid(uuid string) ([]string, error) {
 		return nil, err
 	}
 	url := fmt.Sprintf("http://%s:%d/id-to-fqname", c.server, c.port)
- 	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
+	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +423,7 @@ func (c *Client) FQNameByUuid(uuid string) ([]string, error) {
 	}
 
 	var response struct {
-		Type string
+		Type    string
 		Fq_name []string
 	}
 	err = json.Unmarshal(body, &response)
@@ -464,7 +479,7 @@ func (c *Client) ListByParent(
 		return nil, err
 	}
 
-	content, ok := m[typename + "s"]
+	content, ok := m[typename+"s"]
 	if !ok {
 		return nil, fmt.Errorf("No %ss in Response", typename)
 	}
@@ -479,7 +494,7 @@ func (c *Client) List(typename string, count int) ([]ListResult, error) {
 
 func (c *Client) ListDetailByParent(
 	typename string, parent_id string, fields []string, count int) (
-		[]IObject, error) {
+	[]IObject, error) {
 	var values url.Values
 	values = make(url.Values, 0)
 	if len(parent_id) > 0 {
@@ -516,7 +531,7 @@ func (c *Client) ListDetailByParent(
 		return nil, err
 	}
 
-	content, ok := m[typename + "s"]
+	content, ok := m[typename+"s"]
 	if !ok {
 		return nil, fmt.Errorf("No %ss in Response", typename)
 	}

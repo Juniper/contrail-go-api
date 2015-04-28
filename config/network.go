@@ -5,23 +5,23 @@
 package config
 
 import (
+	"fmt"
 	"github.com/Juniper/contrail-go-api"
 	"github.com/Juniper/contrail-go-api/types"
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
 type NetworkInfo struct {
-	Uuid string
-	Name string
-	AdminState bool
-	NetworkId int
-	Transit bool
-	Mode string
-	Subnets []string
-	Policies []string
+	Uuid         string
+	Name         string
+	AdminState   bool
+	NetworkId    int
+	Transit      bool
+	Mode         string
+	Subnets      []string
+	Policies     []string
 	RouteTargets []string
 }
 
@@ -65,7 +65,7 @@ func buildNetworkInfo(net *types.VirtualNetwork, detail bool) (
 	return info, err
 }
 
-func NetworkShow(client *contrail.Client, uuid string, detail bool) (
+func NetworkShow(client contrail.ApiClient, uuid string, detail bool) (
 	*NetworkInfo, error) {
 	obj, err := client.FindByUuid("virtual-network", uuid)
 	if err != nil {
@@ -74,7 +74,7 @@ func NetworkShow(client *contrail.Client, uuid string, detail bool) (
 	return buildNetworkInfo(obj.(*types.VirtualNetwork), detail)
 }
 
-func NetworkList(client *contrail.Client, project_id string, detail bool) (
+func NetworkList(client contrail.ApiClient, project_id string, detail bool) (
 	[]*NetworkInfo, error) {
 	fields := []string{"network_ipams"}
 	if detail {
@@ -100,8 +100,8 @@ func NetworkList(client *contrail.Client, project_id string, detail bool) (
 }
 
 func CreateNetworkWithSubnet(
-	client *contrail.Client, project_id, name, prefix string) (
-		string, error) {
+	client contrail.ApiClient, project_id, name, prefix string) (
+	string, error) {
 
 	expr := regexp.MustCompile(`(([0-9]{1,3}\.){3}[0-9]{1,3})/([0-9]{1,2})`)
 	match := expr.FindStringSubmatch(prefix)
@@ -154,7 +154,7 @@ func CreateNetworkWithSubnet(
 	return net.GetUuid(), nil
 }
 
-func CreateNetwork(client *contrail.Client, project_id, name string) (
+func CreateNetwork(client contrail.ApiClient, project_id, name string) (
 	string, error) {
 
 	obj, err := client.FindByUuid("project", project_id)
