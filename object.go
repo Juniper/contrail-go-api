@@ -26,7 +26,7 @@ type IObject interface {
 	SetUuid(string)
 	SetFQName(string, []string)
 
-	SetClient(ClientInterface)
+	SetClient(objectInterface)
 	UpdateObject() ([]byte, error)
 	UpdateReferences() error
 	UpdateDone()
@@ -34,18 +34,18 @@ type IObject interface {
 
 // ObjectBase class
 type ObjectBase struct {
-	fq_name []string
-	href string
-	name string
-	uuid string
+	fq_name     []string
+	href        string
+	name        string
+	uuid        string
 	parent_href string
 	parent_type string
 	parent_uuid string
 
 	// clientPtr is set once the object is persisted in the API server
 	// or for objects that are retrieved via Read/GET
-	clientPtr ClientInterface
-	parent IObject
+	clientPtr objectInterface
+	parent    IObject
 }
 
 // Used by IObject.SetName methods.
@@ -95,7 +95,6 @@ func (obj *ObjectBase) SetUuid(uuid string) {
 	obj.uuid = uuid
 }
 
-
 // Accessor for href.
 func (obj *ObjectBase) GetHref() string {
 	return obj.href
@@ -104,7 +103,7 @@ func (obj *ObjectBase) GetHref() string {
 // Set the fully qualified domain name.
 func (obj *ObjectBase) SetFQName(parentType string, fqn []string) {
 	obj.fq_name = fqn
-	obj.name = fqn[len(fqn) - 1]
+	obj.name = fqn[len(fqn)-1]
 	obj.parent_type = parentType
 }
 
@@ -112,7 +111,7 @@ func (obj *ObjectBase) GetFQName() []string {
 	return obj.fq_name
 }
 
-func (obj *ObjectBase) SetClient(c ClientInterface) {
+func (obj *ObjectBase) SetClient(c objectInterface) {
 	obj.clientPtr = c
 }
 
@@ -145,7 +144,7 @@ func (obj *ObjectBase) UnmarshalCommon(m map[string]json.RawMessage) error {
 	// Older versions of the API server have a bug generating the href
 	// on list commands
 	helements := strings.Split(obj.href, "/")
-	if (helements[len(helements)-1] != obj.uuid) {
+	if helements[len(helements)-1] != obj.uuid {
 		fmt.Fprintf(os.Stderr, "WARN invalid href: %s\n", obj.href)
 		helements[len(helements)-1] = obj.uuid
 		obj.href = strings.Join(helements, "/")
@@ -180,7 +179,7 @@ func (obj *ObjectBase) MarshalCommon(m map[string]*json.RawMessage) error {
 	if err != nil {
 		return err
 	}
- 	if len(obj.parent_type) > 0 {
+	if len(obj.parent_type) > 0 {
 		var value json.RawMessage
 		value, err := json.Marshal(&obj.parent_type)
 		if err != nil {
@@ -201,6 +200,7 @@ func (obj *ObjectBase) MarshalCommon(m map[string]*json.RawMessage) error {
 }
 
 type referenceUuidSorter []Reference
+
 func (s referenceUuidSorter) Len() int {
 	return len(s)
 }
@@ -279,16 +279,16 @@ func (obj *ObjectBase) UpdateReference(
 		j++
 
 	}
-	for ;i < len(current); i++ {
+	for ; i < len(current); i++ {
 		adds = append(adds, current[i])
 	}
-	for ;j < len(prev); j++ {
+	for ; j < len(prev); j++ {
 		deletes = append(deletes, prev[j])
 	}
 
 	for _, ref := range deletes {
 		err := obj.clientPtr.UpdateReference(
-			&ReferenceUpdateMsg {
+			&ReferenceUpdateMsg{
 				ptr.GetType(),
 				obj.uuid, field, ref.Uuid, ref.To,
 				"DELETE",
@@ -296,12 +296,12 @@ func (obj *ObjectBase) UpdateReference(
 			})
 		if err != nil {
 			return err
-		}			
+		}
 	}
 
 	for _, ref := range adds {
 		err := obj.clientPtr.UpdateReference(
-			&ReferenceUpdateMsg {
+			&ReferenceUpdateMsg{
 				ptr.GetType(),
 				obj.uuid, field, ref.Uuid, ref.To,
 				"ADD",
