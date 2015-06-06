@@ -12,6 +12,7 @@ import (
 
 type TypeInterceptor interface {
 	Get(contrail.IObject)
+	Put(contrail.IObject)
 }
 
 type ApiClient struct {
@@ -49,6 +50,16 @@ func (m *ApiClient) AddInterceptor(typename string, interceptor TypeInterceptor)
 	}
 	m.InterceptorMap[typename] = interceptor
 }
+
+func (m *ApiClient) interceptPut(ptr contrail.IObject) {
+	if m.InterceptorMap == nil {
+		return
+	}
+	if interceptor, ok := m.InterceptorMap[ptr.GetType()]; ok {
+		interceptor.Put(ptr)
+	}
+}
+
 func (m *ApiClient) interceptGet(ptr contrail.IObject) {
 	if m.InterceptorMap == nil {
 		return
@@ -71,6 +82,7 @@ func (m *ApiClient) Create(ptr contrail.IObject) error {
 			ptr.SetUuid(uuid.New())
 		}
 	}
+	m.interceptPut(ptr)
 	m.objByNameMap[objName(ptr)] = ptr
 	m.objByIdMap[ptr.GetUuid()] = ptr
 	return nil
