@@ -6,6 +6,7 @@ import (
 
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/Juniper/contrail-go-api"
+	"github.com/Juniper/contrail-go-api/types"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -24,6 +25,18 @@ type ApiClient struct {
 func (m *ApiClient) Init() {
 	m.objByNameMap = make(map[string]contrail.IObject)
 	m.objByIdMap = make(map[string]contrail.IObject)
+
+	domain := new(types.Domain)
+	domain.SetName("default-domain")
+	m.Create(domain)
+
+	project := new(types.Project)
+	project.SetFQName("domain", []string{"default-domain", "default-project"})
+	m.Create(project)
+
+	ipam := new(types.NetworkIpam)
+	ipam.SetFQName("project", []string{"default-domain", "default-project", "default-network-ipam"})
+	m.Create(ipam)
 }
 
 func objName(ptr contrail.IObject) string {
