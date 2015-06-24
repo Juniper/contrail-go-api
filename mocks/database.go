@@ -109,6 +109,11 @@ func (db *InMemDatabase) addBackReference(uid UID, typename string, ref UID) err
 		rList = make(UIDList, 0, 1)
 	}
 	data.backRefs[typename] = append(rList, ref)
+
+	if obj, ok := db.objByIdMap[uid]; ok {
+		ClearReferenceMask(obj)
+	}
+
 	return nil
 }
 
@@ -137,6 +142,11 @@ func (db *InMemDatabase) deleteBackReference(uid UID, typename string, ref UID) 
 		rList[index], rList = rList[len(rList)-1], rList[:len(rList)-1]
 		data.backRefs[typename] = rList
 	}
+
+	if obj, ok := db.objByIdMap[uid]; ok {
+		ClearReferenceMask(obj)
+	}
+
 	return nil
 }
 
@@ -231,6 +241,7 @@ func (db *InMemDatabase) Put(obj contrail.IObject, parent contrail.IObject, refs
 	}
 	if parent != nil {
 		db.addChild(parent, obj)
+		ClearReferenceMask(parent)
 	}
 	db.addBackReferences(obj, refs)
 	return nil
@@ -262,6 +273,9 @@ func (db *InMemDatabase) Delete(obj contrail.IObject) error {
 
 	if !data.parent.IsNIL() {
 		db.deleteChild(data.parent, obj)
+		if parentObj, ok := db.objByIdMap[data.parent]; ok {
+			ClearReferenceMask(parentObj)
+		}
 	}
 	db.deleteBackReferences(obj, data.refs)
 
