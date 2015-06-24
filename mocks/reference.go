@@ -29,3 +29,10 @@ func GetReferenceList(obj contrail.IObject) UIDList {
 	}
 	return refList
 }
+
+func ClearReferenceMask(obj contrail.IObject) {
+	value := reflect.ValueOf(obj).Elem()
+	field := value.FieldByName("valid")
+	maskptr := (*uint64)(unsafe.Pointer(field.UnsafeAddr()))
+	*maskptr = 0
+}
