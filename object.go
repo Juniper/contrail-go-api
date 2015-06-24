@@ -20,6 +20,7 @@ type IObject interface {
 	GetFQName() []string
 	GetName() string
 	GetType() string
+	GetParentType() string
 	GetUuid() string
 	GetHref() string
 	SetName(string)
@@ -57,13 +58,13 @@ func (obj *ObjectBase) VSetName(vPtr IObject, name string) {
 	obj.name = name
 	if obj.parent != nil {
 		size := len(obj.parent.GetFQName())
-		obj.fq_name = make([]string, size, size + 1)
+		obj.fq_name = make([]string, size, size+1)
 		copy(obj.fq_name, obj.parent.GetFQName())
 		obj.fq_name = append(obj.fq_name, name)
 		obj.parent_type = obj.parent.GetType()
 	} else {
 		size := len(vPtr.GetDefaultParent())
-		obj.fq_name = make([]string, size, size + 1)
+		obj.fq_name = make([]string, size, size+1)
 		copy(obj.fq_name, vPtr.GetDefaultParent())
 		obj.fq_name = append(obj.fq_name, name)
 		obj.parent_type = vPtr.GetDefaultParentType()
@@ -111,6 +112,10 @@ func (obj *ObjectBase) GetFQName() []string {
 	return obj.fq_name
 }
 
+func (obj *ObjectBase) GetParentType() string {
+	return obj.parent_type
+}
+
 func (obj *ObjectBase) SetClient(c objectInterface) {
 	obj.clientPtr = c
 }
@@ -137,17 +142,20 @@ func (obj *ObjectBase) UnmarshalCommon(m map[string]json.RawMessage) error {
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(m["href"], &obj.href)
-	if err != nil {
-		return err
-	}
-	// Older versions of the API server have a bug generating the href
-	// on list commands
-	helements := strings.Split(obj.href, "/")
-	if helements[len(helements)-1] != obj.uuid {
-		fmt.Fprintf(os.Stderr, "WARN invalid href: %s\n", obj.href)
-		helements[len(helements)-1] = obj.uuid
-		obj.href = strings.Join(helements, "/")
+	if href, ok := m["href"]; ok {
+		err = json.Unmarshal(href, &obj.href)
+		if err != nil {
+			return err
+		}
+
+		// Older versions of the API server have a bug generating the href
+		// on list commands
+		helements := strings.Split(obj.href, "/")
+		if helements[len(helements)-1] != obj.uuid {
+			fmt.Fprintf(os.Stderr, "WARN invalid href: %s\n", obj.href)
+			helements[len(helements)-1] = obj.uuid
+			obj.href = strings.Join(helements, "/")
+		}
 	}
 	return nil
 }
