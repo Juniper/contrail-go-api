@@ -129,3 +129,47 @@ func TestReadModifiedRefs(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, refs, 1)
 }
+
+func TestReadModifiedPolicy(t *testing.T) {
+	client := new(ApiClient)
+	client.Init()
+
+	project := new(types.Project)
+	project.SetFQName("domain", []string{"default-domain", "p1"})
+	assert.NoError(t, client.Create(project))
+
+	policy := new(types.NetworkPolicy)
+	policy.SetFQName("project", []string{"default-domain", "p1", "x"})
+	assert.NoError(t, client.Create(policy))
+
+	net1 := new(types.VirtualNetwork)
+	net1.SetFQName("project", []string{"default-domain", "p1", "n1"})
+	net1.AddNetworkPolicy(policy,
+		types.VirtualNetworkPolicyType{
+			Sequence: &types.SequenceType{10, 0},
+		})
+	assert.NoError(t, client.Create(net1))
+
+	net2 := new(types.VirtualNetwork)
+	net2.SetFQName("project", []string{"default-domain", "p1", "n2"})
+	net2.AddNetworkPolicy(policy,
+		types.VirtualNetworkPolicyType{
+			Sequence: &types.SequenceType{10, 0},
+		})
+	assert.NoError(t, client.Create(net2))
+
+	refs, err := policy.GetVirtualNetworkBackRefs()
+	assert.NoError(t, err)
+	assert.Len(t, refs, 2)
+
+	assert.NoError(t, client.Delete(net1))
+
+	refs, err = policy.GetVirtualNetworkBackRefs()
+	assert.NoError(t, err)
+	assert.Len(t, refs, 1)
+
+	assert.NoError(t, client.Delete(net2))
+	refs, err = policy.GetVirtualNetworkBackRefs()
+	assert.NoError(t, err)
+	assert.Len(t, refs, 0)
+}

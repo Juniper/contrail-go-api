@@ -37,9 +37,6 @@ func (u *objectUpdater) GetField(obj contrail.IObject, field string) error {
 			return err
 		}
 	}
-	if len(idList) == 0 {
-		return nil
-	}
 
 	refList := make(contrail.ReferenceList, len(idList))
 	for i, id := range idList {
@@ -52,6 +49,7 @@ func (u *objectUpdater) GetField(obj contrail.IObject, field string) error {
 		refList[i].To = make([]string, len(fqn))
 		copy(refList[i].To, fqn)
 	}
+
 	listJson, err := json.Marshal(refList)
 	if err != nil {
 		return err
