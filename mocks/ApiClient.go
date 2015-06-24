@@ -1,7 +1,6 @@
 package mocks
 
 import (
-	"fmt"
 	"strings"
 
 	"code.google.com/p/go-uuid/uuid"
@@ -19,25 +18,35 @@ type ApiClient struct {
 	mock.Mock
 	IdAssignMap    map[string]string
 	InterceptorMap map[string]TypeInterceptor
-	objByNameMap   map[string]contrail.IObject
-	objByIdMap     map[string]contrail.IObject
+	db             Database
+	updater        *objectUpdater
 }
 
 func (m *ApiClient) Init() {
-	m.objByNameMap = make(map[string]contrail.IObject)
-	m.objByIdMap = make(map[string]contrail.IObject)
+	m.db = NewInMemDatabase()
+
+	m.updater = NewObjectUpdater(m.db)
 
 	domain := new(types.Domain)
 	domain.SetName("default-domain")
-	m.Create(domain)
+	err := m.Create(domain)
+	if err != nil {
+		panic(err.Error())
+	}
 
 	project := new(types.Project)
 	project.SetFQName("domain", []string{"default-domain", "default-project"})
-	m.Create(project)
+	err = m.Create(project)
+	if err != nil {
+		panic(err.Error())
+	}
 
 	ipam := new(types.NetworkIpam)
 	ipam.SetFQName("project", []string{"default-domain", "default-project", "default-network-ipam"})
-	m.Create(ipam)
+	err = m.Create(ipam)
+	if err != nil {
+		panic(err.Error())
+	}
 }
 
 func objName(ptr contrail.IObject) string {
@@ -69,6 +78,16 @@ func (m *ApiClient) interceptGet(ptr contrail.IObject) {
 	}
 }
 
+func (m *ApiClient) getParent(obj contrail.IObject) (contrail.IObject, error) {
+	typename := obj.GetParentType()
+	if len(typename) == 0 || typename == "config-root" {
+		return nil, nil
+	}
+	fqn := obj.GetFQName()
+	parent_name := fqn[:len(fqn)-1]
+	return m.db.GetByName(typename, strings.Join(parent_name, ":"))
+}
+
 func (m *ApiClient) Create(ptr contrail.IObject) error {
 	if ptr.GetUuid() == "" {
 		isSet := false
@@ -82,54 +101,66 @@ func (m *ApiClient) Create(ptr contrail.IObject) error {
 			ptr.SetUuid(uuid.New())
 		}
 	}
-	m.interceptPut(ptr)
-	m.objByNameMap[objName(ptr)] = ptr
-	m.objByIdMap[ptr.GetUuid()] = ptr
-	return nil
-}
-func (m *ApiClient) Update(ptr contrail.IObject) error {
-	return nil
-}
-func (m *ApiClient) DeleteByUuid(typename string, uuid string) error {
-	obj, ok := m.objByIdMap[uuid]
-	if !ok {
-		return fmt.Errorf("%s %s: Not found", typename, uuid)
+
+	parent, err := m.getParent(ptr)
+	if err != nil {
+		return err
 	}
-	delete(m.objByIdMap, uuid)
-	delete(m.objByNameMap, objName(obj))
+	m.interceptPut(ptr)
+
+	refList := GetReferenceList(ptr)
+
+	m.db.Put(ptr, parent, refList)
+	ptr.SetClient(m.updater)
+
 	return nil
 }
+
+func (m *ApiClient) Update(ptr contrail.IObject) error {
+	refList := GetReferenceList(ptr)
+	m.db.Update(ptr, refList)
+	return nil
+}
+
+func (m *ApiClient) DeleteByUuid(typename string, id string) error {
+	obj, err := m.db.GetByUuid(uuid.Parse(id))
+	if err != nil {
+		return err
+	}
+	// Ensure the object has no children and/or back_refs
+	return m.db.Delete(obj)
+}
+
 func (m *ApiClient) Delete(ptr contrail.IObject) error {
-	delete(m.objByIdMap, ptr.GetUuid())
-	delete(m.objByNameMap, objName(ptr))
-	return nil
+	return m.db.Delete(ptr)
 }
-func (m *ApiClient) FindByUuid(typename string, uuid string) (contrail.IObject, error) {
-	obj, ok := m.objByIdMap[uuid]
-	if !ok {
-		return nil, fmt.Errorf("%s %s: Not found", typename, uuid)
+
+func (m *ApiClient) FindByUuid(typename string, id string) (contrail.IObject, error) {
+	obj, err := m.db.GetByUuid(uuid.Parse(id))
+	if err != nil {
+		return nil, err
 	}
 	m.interceptGet(obj)
 	return obj, nil
 }
 func (m *ApiClient) UuidByName(typename string, fqn string) (string, error) {
-	obj, ok := m.objByNameMap[typename+":"+fqn]
-	if !ok {
-		return "", fmt.Errorf("%s %s: Not found", typename, fqn)
+	obj, err := m.db.GetByName(typename, fqn)
+	if err != nil {
+		return "", err
 	}
 	return obj.GetUuid(), nil
 }
-func (m *ApiClient) FQNameByUuid(uuid string) ([]string, error) {
-	obj, ok := m.objByIdMap[uuid]
-	if !ok {
-		return []string{}, fmt.Errorf("%s: Not found", uuid)
+func (m *ApiClient) FQNameByUuid(id string) ([]string, error) {
+	obj, err := m.db.GetByUuid(uuid.Parse(id))
+	if err != nil {
+		return []string{}, err
 	}
 	return obj.GetFQName(), nil
 }
 func (m *ApiClient) FindByName(typename string, fqn string) (contrail.IObject, error) {
-	obj, ok := m.objByNameMap[typename+":"+fqn]
-	if !ok {
-		return nil, fmt.Errorf("%s %s: Not found", typename, fqn)
+	obj, err := m.db.GetByName(typename, fqn)
+	if err != nil {
+		return nil, err
 	}
 	m.interceptGet(obj)
 	return obj, nil
