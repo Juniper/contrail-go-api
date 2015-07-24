@@ -15,7 +15,7 @@ type Database interface {
 	Delete(obj contrail.IObject) error
 	GetByUuid(id uuid.UUID) (contrail.IObject, error)
 	GetByName(typename string, fqn string) (contrail.IObject, error)
-	// List(typename string, start uuid.UUID, count int) ([]contrail.IObject, uuid.UUID)
+	List(typename string) []contrail.IObject
 	GetChildren(uid UID, typename string) (UIDList, error)
 	GetBackReferences(uid UID, typename string) (UIDList, error)
 }
@@ -265,10 +265,10 @@ func (db *InMemDatabase) Delete(obj contrail.IObject) error {
 		return fmt.Errorf("Object %s: not in database", obj.GetUuid())
 	}
 	if len(data.children) > 0 {
-		return fmt.Errorf("Delete %s: has children %+v", data.children)
+		return fmt.Errorf("Delete %s: has children %+v", obj.GetUuid(), data.children)
 	}
 	if len(data.backRefs) > 0 {
-		return fmt.Errorf("Delete %s: has references %+v", data.backRefs)
+		return fmt.Errorf("Delete %s: has references %+v", obj.GetUuid(), data.backRefs)
 	}
 
 	if !data.parent.IsNIL() {
@@ -335,4 +335,19 @@ func (db *InMemDatabase) GetBackReferences(uid UID, typename string) (UIDList, e
 		return nilList, nil
 	}
 	return refList, nil
+}
+
+func (db *InMemDatabase) List(typename string) []contrail.IObject {
+	nilList := []contrail.IObject{}
+	typeMap, ok := db.typeDB[typename]
+	if !ok {
+		return nilList
+	}
+	values := make([]contrail.IObject, len(typeMap))
+	i := 0
+	for _, v := range typeMap {
+		values[i] = v
+		i++
+	}
+	return values
 }

@@ -81,7 +81,7 @@ func NetworkList(client contrail.ApiClient, project_id string, detail bool) (
 		fields = append(fields, "network_policys")
 	}
 	networks, err := client.ListDetailByParent(
-		"virtual-network", project_id, fields, 0)
+		"virtual-network", project_id, fields)
 	if err != nil {
 		return nil, err
 	}

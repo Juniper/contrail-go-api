@@ -22,7 +22,7 @@ import (
 )
 
 type policyCommonOptions struct {
-	project string
+	project   string
 	projectId string
 }
 
@@ -32,11 +32,11 @@ type policyOpOptions struct {
 
 type policyListOptions struct {
 	allTenants bool
-	detail bool
+	detail     bool
 }
 
 type policyAttachOptions struct {
-	policy string
+	policy  string
 	network string
 }
 
@@ -44,22 +44,22 @@ type policyProtocolValue string
 type policyPortValue int
 
 var protocolValues = map[string]int{
-	"tcp": 6,
-	"udp": 17,
+	"tcp":  6,
+	"udp":  17,
 	"icmp": 1,
-	"any": 0,
+	"any":  0,
 }
 
 type policyRuleOptions struct {
-	ruleId string
-	afterRule string
-	policy string
+	ruleId       string
+	afterRule    string
+	policy       string
 	srcIpAddress string
-	srcNetwork string
+	srcNetwork   string
 	dstIpAddress string
-	dstNetwork string
-	protocol policyProtocolValue
-	srcPort policyPortValue
+	dstNetwork   string
+	protocol     policyProtocolValue
+	srcPort      policyPortValue
 	// srcPortRange string
 	dstPort policyPortValue
 	// dstPortRange string
@@ -72,9 +72,9 @@ type policyRuleOptions struct {
 
 var (
 	policyCommonOpts policyCommonOptions
-	policyOpOpts policyOpOptions
-	policyListOpts policyListOptions
-	policyRuleOpts policyRuleOptions
+	policyOpOpts     policyOpOptions
+	policyListOpts   policyListOptions
+	policyRuleOpts   policyRuleOptions
 	policyAttachOpts policyAttachOptions
 )
 
@@ -101,13 +101,13 @@ const policyShowDetail = `  Policy: {{.GetName}}
 // Retrieves the virtual-network references from the policy rules
 // for display purposes.
 func getRulesNetworks(policy *types.NetworkPolicy) (string, string) {
-	displayValue := func (m map[string]bool) string {
+	displayValue := func(m map[string]bool) string {
 		if len(m) > 1 {
 			return "<multiple>"
 		}
 		for key, _ := range m {
 			fqn := strings.Split(key, ":")
-			return fqn[len(fqn) - 1]
+			return fqn[len(fqn)-1]
 		}
 		return "none"
 	}
@@ -133,7 +133,7 @@ func getRulesNetworks(policy *types.NetworkPolicy) (string, string) {
 // Summary information of the network policies configured (per project)
 func policyListTerse(client *contrail.Client, projectId string) {
 	poList, err := client.ListDetailByParent(
-		"network-policy", projectId, nil, 0)
+		"network-policy", projectId, nil)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -165,7 +165,7 @@ func makeShowTemplate() *template.Template {
 func policyListDetail(client *contrail.Client, projectId string) {
 	poList, err := client.ListDetailByParent(
 		"network-policy", projectId,
-		[]string{"virtual_network_back_refs"}, 0)
+		[]string{"virtual_network_back_refs"})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -184,7 +184,7 @@ func policyList(client *contrail.Client, flagSet *flag.FlagSet) {
 	if !policyListOpts.allTenants {
 		var err error
 		projectId, err = config.GetProjectId(
-			client,	policyCommonOpts.project,
+			client, policyCommonOpts.project,
 			policyCommonOpts.projectId)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -294,7 +294,7 @@ func getPolicyObject(
 
 func getPolicyId(client *contrail.Client,
 	projectName, projectId, policyNameOrId string) (
-		string, error) {
+	string, error) {
 
 	uuid := strings.ToLower(policyNameOrId)
 	if !config.IsUuid(uuid) {
@@ -321,15 +321,15 @@ func makeAddresses(optAddress, optNetwork string) []types.AddressType {
 		comp := strings.Split(optAddress, "/")
 		if len(comp) != 2 {
 			fmt.Fprintf(os.Stderr,
-				"Expected IP prefix in the format n.n.n.n/n" +
-				", got %s\n", optAddress)
+				"Expected IP prefix in the format n.n.n.n/n"+
+					", got %s\n", optAddress)
 			os.Exit(2)
 		}
 		matched, _ := regexp.MatchString(config.IpAddressPattern,
 			comp[0])
 		if !matched {
 			fmt.Fprintf(os.Stderr, "Invalid IP address: %s\n",
-			comp[0])
+				comp[0])
 			os.Exit(2)
 		}
 		address.Subnet.IpPrefix = comp[0]
@@ -394,11 +394,11 @@ func policyRuleAdd(client *contrail.Client, flagSet *flag.FlagSet) {
 	entries := policy.GetNetworkPolicyEntries()
 	rule := makePolicyRule(&policyRuleOpts)
 
-	insertRule := func (list []types.PolicyRuleType, i int,
+	insertRule := func(list []types.PolicyRuleType, i int,
 		rule *types.PolicyRuleType) []types.PolicyRuleType {
-			return append(list[:i+1],
-				append([]types.PolicyRuleType{*rule},
-					list[i+1:]...)...)
+		return append(list[:i+1],
+			append([]types.PolicyRuleType{*rule},
+				list[i+1:]...)...)
 	}
 	if uuid := policyRuleOpts.afterRule; len(uuid) > 0 {
 		matched, _ := regexp.MatchString(config.UuidPattern, uuid)
@@ -409,7 +409,7 @@ func policyRuleAdd(client *contrail.Client, flagSet *flag.FlagSet) {
 		var ok bool
 		for i, entry := range entries.PolicyRule {
 			if entry.RuleUuid == uuid {
-				entries.PolicyRule = 
+				entries.PolicyRule =
 					insertRule(entries.PolicyRule, i, rule)
 				ok = true
 				break
@@ -502,16 +502,15 @@ func policyRuleDelete(client *contrail.Client, flagSet *flag.FlagSet) {
 		os.Exit(2)
 	}
 
-	deleteRule := func (list []types.PolicyRuleType, i int) (
-		[]types.PolicyRuleType) {
-			return append(list[:i], list[i+1:]...)
+	deleteRule := func(list []types.PolicyRuleType, i int) []types.PolicyRuleType {
+		return append(list[:i], list[i+1:]...)
 	}
 
 	var ok bool
 	entries := policy.GetNetworkPolicyEntries()
 	for i, entry := range entries.PolicyRule {
 		if entry.RuleUuid == uuid {
-			entries.PolicyRule = 
+			entries.PolicyRule =
 				deleteRule(entries.PolicyRule, i)
 			ok = true
 			break
