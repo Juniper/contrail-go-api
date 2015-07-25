@@ -1,15 +1,15 @@
 package contrail
 
 import (
+	"fmt"
 	"github.com/Juniper/contrail-go-api"
 	"github.com/Juniper/contrail-go-api/types"
-	"fmt"
 	"testing"
 )
 
 func TestClient(t *testing.T) {
 	client := contrail.NewClient("localhost", 8082)
-	elements, err := client.List("project", 0)
+	elements, err := client.List("project")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestCreate(t *testing.T) {
 	subnets := types.VnSubnetsType{}
 	subnets.AddIpamSubnets(
 		&types.IpamSubnetType{
-			Subnet: types.SubnetType{"10.0.0.0", 8}})
+			Subnet: &types.SubnetType{"10.0.0.0", 8}})
 	net.AddNetworkIpam(ipam.(*types.NetworkIpam), subnets)
 	err = client.Create(&net)
 	if err != nil {
@@ -141,7 +141,7 @@ func TestReferenceUpdate(t *testing.T) {
 	subnets := types.VnSubnetsType{}
 	subnets.AddIpamSubnets(
 		&types.IpamSubnetType{
-			Subnet: types.SubnetType{"10.0.0.0", 8}})
+			Subnet: &types.SubnetType{"10.0.0.0", 8}})
 	net.AddNetworkIpam(ipam.(*types.NetworkIpam), subnets)
 	err = client.Create(&net)
 	if err != nil {
@@ -164,8 +164,7 @@ func TestReferenceUpdate(t *testing.T) {
 		nsubnets := types.VnSubnetsType{}
 		nsubnets.AddIpamSubnets(
 			&types.IpamSubnetType{
-				Subnet: types.SubnetType{
-					"192.168.0.0", 16}})
+				Subnet: &types.SubnetType{"192.168.0.0", 16}})
 		netPtr.AddNetworkIpam(ipam.(*types.NetworkIpam), nsubnets)
 		client.Update(netPtr)
 	} else {
@@ -215,7 +214,7 @@ func TestReferenceUpdate(t *testing.T) {
 
 func TestListDetail(t *testing.T) {
 	client := contrail.NewClient("localhost", 8082)
-	objects, err := client.ListDetail("virtual-network", nil, 0)
+	objects, err := client.ListDetail("virtual-network", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +228,7 @@ func TestListDetail(t *testing.T) {
 		objectMap[net.GetName()] = net
 	}
 
-	expected := []string {
+	expected := []string{
 		"ip-fabric", "__link_local__",
 	}
 	for _, expect := range expected {

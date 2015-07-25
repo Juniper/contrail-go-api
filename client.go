@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
-	"strconv"
 	"strings"
 	"unicode"
 )
@@ -55,10 +54,10 @@ type ApiClient interface {
 	UuidByName(typename string, fqn string) (string, error)
 	FQNameByUuid(uuid string) ([]string, error)
 	FindByName(typename string, fqn string) (IObject, error)
-	List(typename string, count int) ([]ListResult, error)
-	ListByParent(typename string, parent_id string, count int) ([]ListResult, error)
-	ListDetail(typename string, fields []string, count int) ([]IObject, error)
-	ListDetailByParent(typename string, parent_id string, fields []string, count int) ([]IObject, error)
+	List(typename string) ([]ListResult, error)
+	ListByParent(typename string, parent_id string) ([]ListResult, error)
+	ListDetail(typename string, fields []string) ([]IObject, error)
+	ListDetailByParent(typename string, parent_id string, fields []string) ([]IObject, error)
 }
 
 // A client of the OpenContrail API server.
@@ -444,14 +443,11 @@ func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
 
 // Retrieve the list of all elements of a specific type.
 func (c *Client) ListByParent(
-	typename string, parent_id string, count int) ([]ListResult, error) {
+	typename string, parent_id string) ([]ListResult, error) {
 	var values url.Values
 	values = make(url.Values, 0)
 	if len(parent_id) > 0 {
 		values.Add("parent_id", parent_id)
-	}
-	if count > 0 {
-		values.Add("count", strconv.Itoa(count))
 	}
 
 	url := fmt.Sprintf("http://%s:%d/%ss", c.server, c.port, typename)
@@ -488,12 +484,12 @@ func (c *Client) ListByParent(
 	return rlist, err
 }
 
-func (c *Client) List(typename string, count int) ([]ListResult, error) {
-	return c.ListByParent(typename, "", 0)
+func (c *Client) List(typename string) ([]ListResult, error) {
+	return c.ListByParent(typename, "")
 }
 
 func (c *Client) ListDetailByParent(
-	typename string, parent_id string, fields []string, count int) (
+	typename string, parent_id string, fields []string) (
 	[]IObject, error) {
 	var values url.Values
 	values = make(url.Values, 0)
@@ -502,9 +498,6 @@ func (c *Client) ListDetailByParent(
 	}
 	for _, field := range fields {
 		values.Add("fields", field)
-	}
-	if count > 0 {
-		values.Add("count", strconv.Itoa(count))
 	}
 	values.Add("detail", "true")
 
@@ -570,9 +563,9 @@ func (c *Client) ListDetailByParent(
 	return result, nil
 }
 
-func (c *Client) ListDetail(typename string, fields []string, count int) (
+func (c *Client) ListDetail(typename string, fields []string) (
 	[]IObject, error) {
-	return c.ListDetailByParent(typename, "", fields, count)
+	return c.ListDetailByParent(typename, "", fields)
 }
 
 // Retrieve a specified field of an object from the API server.

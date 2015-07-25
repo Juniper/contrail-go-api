@@ -1,12 +1,12 @@
 package mocks
 
 import (
+	"fmt"
 	"strings"
 
 	"code.google.com/p/go-uuid/uuid"
 	"github.com/Juniper/contrail-go-api"
 	"github.com/Juniper/contrail-go-api/types"
-	"github.com/stretchr/testify/mock"
 )
 
 type TypeInterceptor interface {
@@ -15,7 +15,6 @@ type TypeInterceptor interface {
 }
 
 type ApiClient struct {
-	mock.Mock
 	IdAssignMap    map[string]string
 	InterceptorMap map[string]TypeInterceptor
 	db             Database
@@ -165,47 +164,66 @@ func (m *ApiClient) FindByName(typename string, fqn string) (contrail.IObject, e
 	m.interceptGet(obj)
 	return obj, nil
 }
-func (m *ApiClient) List(typename string, count int) ([]contrail.ListResult, error) {
-	ret := m.Called(typename, count)
 
-	var r0 []contrail.ListResult
-	if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]contrail.ListResult)
-	}
-	r1 := ret.Error(1)
-
-	return r0, r1
+func (m *ApiClient) List(typename string) ([]contrail.ListResult, error) {
+	return m.ListByParent(typename, "")
 }
-func (m *ApiClient) ListByParent(typename string, parent_id string, count int) ([]contrail.ListResult, error) {
-	ret := m.Called(typename, parent_id, count)
 
-	var r0 []contrail.ListResult
-	if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]contrail.ListResult)
+func filterByParent(obj contrail.IObject, parent_id string) bool {
+	if parent_id == "" {
+		return false
 	}
-	r1 := ret.Error(1)
-
-	return r0, r1
+	fqn := obj.GetFQName()
+	parentName := strings.Join(fqn[0:len(fqn)-2], ":")
+	return parentName != parent_id
 }
-func (m *ApiClient) ListDetail(typename string, fields []string, count int) ([]contrail.IObject, error) {
-	ret := m.Called(typename, fields, count)
 
-	var r0 []contrail.IObject
-	if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]contrail.IObject)
+func (m *ApiClient) ListByParent(typename string, parent_id string) ([]contrail.ListResult, error) {
+	nilList := []contrail.ListResult{}
+	if _, ok := types.TypeMap[typename]; !ok {
+		return nilList, fmt.Errorf("404 Not Found")
 	}
-	r1 := ret.Error(1)
-
-	return r0, r1
+	objList := m.db.List(typename)
+	cap := 0
+	if parent_id == "" {
+		cap = len(objList)
+	}
+	result := make([]contrail.ListResult, 0, cap)
+	for _, obj := range objList {
+		if filterByParent(obj, parent_id) {
+			continue
+		}
+		element := contrail.ListResult{
+			Fq_name: obj.GetFQName(),
+			Href:    obj.GetHref(),
+			Uuid:    obj.GetUuid(),
+		}
+		result = append(result, element)
+	}
+	return result, nil
 }
-func (m *ApiClient) ListDetailByParent(typename string, parent_id string, fields []string, count int) ([]contrail.IObject, error) {
-	ret := m.Called(typename, parent_id, fields, count)
 
-	var r0 []contrail.IObject
-	if ret.Get(0) != nil {
-		r0 = ret.Get(0).([]contrail.IObject)
+func (m *ApiClient) ListDetail(typename string, fields []string) ([]contrail.IObject, error) {
+	nilList := []contrail.IObject{}
+	if _, ok := types.TypeMap[typename]; !ok {
+		return nilList, fmt.Errorf("404 Not Found")
 	}
-	r1 := ret.Error(1)
+	objList := m.db.List(typename)
+	return objList, nil
+}
 
-	return r0, r1
+func (m *ApiClient) ListDetailByParent(typename string, parent_id string, fields []string) ([]contrail.IObject, error) {
+	elements := make([]contrail.IObject, 0)
+	if _, ok := types.TypeMap[typename]; !ok {
+		return elements, fmt.Errorf("404 Not Found")
+	}
+
+	objList := m.db.List(typename)
+	for _, obj := range objList {
+		if filterByParent(obj, parent_id) {
+			continue
+		}
+		elements = append(elements, obj)
+	}
+	return elements, nil
 }

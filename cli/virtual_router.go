@@ -20,7 +20,7 @@ import (
 )
 
 type virtualRouterListOptions struct {
-	detail bool
+	detail          bool
 	analyticsServer string
 }
 
@@ -29,16 +29,16 @@ type virtualRouterCreateOptions struct {
 }
 
 var (
-	virtualRouterListOpts virtualRouterListOptions
+	virtualRouterListOpts   virtualRouterListOptions
 	virtualRouterCreateOpts virtualRouterCreateOptions
 )
 
 type virtualRouterInfo struct {
-	Name string
-	IpAddress string
-	Configured bool		// In config DB
-	Present bool		// Reported by analytics DB
-	Status string		// Analytics NodeStatus query result
+	Name       string
+	IpAddress  string
+	Configured bool   // In config DB
+	Present    bool   // Reported by analytics DB
+	Status     string // Analytics NodeStatus query result
 }
 
 const virtualRouterShowDetail = `  Name: {{.Name}}
@@ -58,7 +58,7 @@ func virtualRouterAnalyticsStatus(client *contrail.Client,
 		server = client.GetServer()
 	}
 	api := analytics.NewAnalyticsClient(
-		server,	analytics.AnalyticsDefaultPort)
+		server, analytics.AnalyticsDefaultPort)
 
 	routers, err := api.VirtualRouterList()
 	if err != nil {
@@ -85,7 +85,7 @@ func virtualRouterAnalyticsStatus(client *contrail.Client,
 func virtualRouterList(client *contrail.Client, flagSet *flag.FlagSet) {
 	var fields []string
 	detail := virtualRouterListOpts.detail
-	routerList, err := client.ListDetail("virtual-router", fields, 0)
+	routerList, err := client.ListDetail("virtual-router", fields)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -96,8 +96,8 @@ func virtualRouterList(client *contrail.Client, flagSet *flag.FlagSet) {
 	for _, obj := range routerList {
 		router := obj.(*types.VirtualRouter)
 		routerMap[router.GetName()] = &virtualRouterInfo{
-			Name: router.GetName(),
-			IpAddress: router.GetVirtualRouterIpAddress(),
+			Name:       router.GetName(),
+			IpAddress:  router.GetVirtualRouterIpAddress(),
 			Configured: true,
 		}
 	}
