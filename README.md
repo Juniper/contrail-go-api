@@ -1,3 +1,5 @@
+![Build Status] (https://travis-ci.org/Juniper/contrail-go-api.svg?branch=master)
+
 contrail-go-api
 ===============
 
@@ -17,6 +19,9 @@ The types package is generated using the command:
 tools/generateds/generateDS.py -f -o $GOPATH/src/github.com/Juniper/contrail-go-api/types -g golang-api controller/src/schema/vnc_cfg.xsd
 ```
 
+Pre-generated tar files with the generated types are also available as part of each release. The golang types corresponding to the schema defined by OpenContrail R2.20 are available at:
+ - https://github.com/Juniper/contrail-go-api/releases/download/1.0.0/contrail-go-api-generated-types-r2.20.tar.gz
+
 To build the CLI command:
 ```
 go install github.com/Juniper/contrail-go-api/cli
@@ -27,6 +32,5 @@ TODO items:
 consists of a list of elements (e.g. association between
 virtual-network and network-ipam is a list of subnets). Currently the way to modify this metadata on a link is to delete it and re-add it; the generator should generate helper methods to make manipulating these lists simpler.
  - VRouter API: The library needs to be extended in order to have a class that communicates with the vrouter-agent process in order to add/delete ports.
- - Authentication: The library should support both username/password on port 8085 (for read-only operations) as well as keystone authentication.
  - Provisioning taks: there is the need to capture common provisining tasks such as configuring BGP routers.
  - CLI: The CLI currently supports operations on networks, policies and virtual-routers. Additional support needs to be added for other common configuration and provisioning tasks.
