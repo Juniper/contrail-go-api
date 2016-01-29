@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/Juniper/contrail-go-api"
+	"github.com/pborman/uuid"
 )
 
 type Database interface {

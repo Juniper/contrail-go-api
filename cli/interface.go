@@ -15,13 +15,13 @@ import (
 	"text/tabwriter"
 	"text/template"
 
-	"code.google.com/p/go-uuid/uuid"
 	"github.com/Juniper/contrail-go-api"
+	"github.com/pborman/uuid"
 )
 
 type interfaceStatusOptions struct {
 	vrouter string
-	detail bool
+	detail  bool
 }
 
 var (
@@ -49,21 +49,21 @@ func interfaceStatus(client *contrail.Client, flagSet *flag.FlagSet) {
 	// see: controller/src/vnsw/agent/oper/agent.sandesh
 	// struct ItfSandeshData
 	type InterfaceData struct {
-		Name string		`xml:"name"`
-		Uuid string		`xml:"uuid"`
-		VrfName string		`xml:"vrf_name"`
-		Status string		`xml:"active"`
-		NetworkName string	`xml:"vn_name"`
-		InstanceName string	`xml:"vm_name"`
-		IpAddress string	`xml:"ip_addr"`
+		Name             string `xml:"name"`
+		Uuid             string `xml:"uuid"`
+		VrfName          string `xml:"vrf_name"`
+		Status           string `xml:"active"`
+		NetworkName      string `xml:"vn_name"`
+		InstanceName     string `xml:"vm_name"`
+		IpAddress        string `xml:"ip_addr"`
 		LinkLocalAddress string `xml:"mdata_ip_addr"`
 	}
 
 	type Envelope struct {
-		XMLName xml.Name `xml:"ItfResp"`
-		Data []InterfaceData `xml:"itf_list>list>ItfSandeshData"`
+		XMLName xml.Name        `xml:"ItfResp"`
+		Data    []InterfaceData `xml:"itf_list>list>ItfSandeshData"`
 	}
-	
+
 	var m Envelope
 	err = xml.Unmarshal(body, &m)
 	if err != nil {

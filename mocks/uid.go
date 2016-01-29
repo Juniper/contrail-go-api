@@ -1,7 +1,7 @@
 package mocks
 
 import (
-	"code.google.com/p/go-uuid/uuid"
+	"github.com/pborman/uuid"
 )
 
 // uuid.UUID is a slice and cannot be used as a map key.
