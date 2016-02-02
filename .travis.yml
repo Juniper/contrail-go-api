@@ -6,4 +6,4 @@ install:
   - go get github.com/stretchr/testify
   - go get github.com/pborman/uuid
 
-script: go test ./mocks
+script: go test -v ./...

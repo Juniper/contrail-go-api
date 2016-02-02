@@ -6,11 +6,13 @@ package config
 
 import (
 	"fmt"
-	"github.com/Juniper/contrail-go-api"
-	"github.com/Juniper/contrail-go-api/types"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/Juniper/contrail-go-api"
+	"github.com/Juniper/contrail-go-api/types"
 )
 
 type NetworkInfo struct {
@@ -99,17 +101,74 @@ func NetworkList(client contrail.ApiClient, project_id string, detail bool) (
 	return networkList, nil
 }
 
-func CreateNetworkWithSubnet(
-	client contrail.ApiClient, project_id, name, prefix string) (
-	string, error) {
-
+func makeSubnet(prefix string) (*types.IpamSubnetType, error) {
 	expr := regexp.MustCompile(`(([0-9]{1,3}\.){3}[0-9]{1,3})/([0-9]{1,2})`)
 	match := expr.FindStringSubmatch(prefix)
 	if match == nil {
-		return "", fmt.Errorf("Invalid subnet prefix %s", prefix)
+		return nil, fmt.Errorf("Invalid subnet prefix %s", prefix)
 	}
 	address := match[1]
+	if net.ParseIP(address) == nil {
+		return nil, fmt.Errorf("%s is not a valid IP address", address)
+	}
 	prefixlen, _ := strconv.Atoi(match[3])
+	if prefixlen < 0 || prefixlen > 32 {
+		return nil, fmt.Errorf("Invalid subnet prefix length %d", prefixlen)
+	}
+
+	subnet := &types.IpamSubnetType{
+		Subnet: &types.SubnetType{address, prefixlen}}
+	return subnet, nil
+}
+
+func networkAddSubnet(
+	client contrail.ApiClient,
+	project *types.Project, network *types.VirtualNetwork,
+	subnet *types.IpamSubnetType) error {
+
+	refList, err := project.GetNetworkIpams()
+	if err != nil {
+		return err
+	}
+
+	var ipam *types.NetworkIpam
+	if len(refList) > 0 {
+		obj, err := client.FindByUuid("network-ipam", refList[0].Uuid)
+		if err != nil {
+			return err
+		}
+		ipam = obj.(*types.NetworkIpam)
+	} else {
+		obj, err := client.FindByName("network-ipam",
+			"default-domain:default-project:default-network-ipam")
+		if err != nil {
+			return err
+		}
+		ipam = obj.(*types.NetworkIpam)
+	}
+
+	refs, err := network.GetNetworkIpamRefs()
+	if err != nil {
+		return err
+	}
+
+	var subnets types.VnSubnetsType
+
+	for _, ref := range refs {
+		if ref.Uuid == ipam.GetUuid() {
+			subnets = ref.Attr.(types.VnSubnetsType)
+			network.DeleteNetworkIpam(ref.Uuid)
+			break
+		}
+	}
+	subnets.AddIpamSubnets(subnet)
+	network.AddNetworkIpam(ipam, subnets)
+	return nil
+}
+
+func CreateNetworkWithSubnet(
+	client contrail.ApiClient, project_id, name, prefix string) (
+	string, error) {
 
 	obj, err := client.FindByUuid("project", project_id)
 	if err != nil {
@@ -117,41 +176,65 @@ func CreateNetworkWithSubnet(
 	}
 
 	project := obj.(*types.Project)
-	refList, err := project.GetNetworkIpams()
-	if err != nil {
-		return "", err
-	}
-
-	var ipam *types.NetworkIpam
-	if len(refList) > 0 {
-		obj, err := client.FindByUuid("network-ipam", refList[0].Uuid)
-		if err != nil {
-			return "", err
-		}
-		ipam = obj.(*types.NetworkIpam)
-	} else {
-		obj, err := client.FindByName("network-ipam",
-			"default-domain:default-project:default-network-ipam")
-		if err != nil {
-			return "", err
-		}
-		ipam = obj.(*types.NetworkIpam)
-	}
 
 	net := new(types.VirtualNetwork)
 	net.SetParent(project)
 	net.SetName(name)
 
-	subnets := types.VnSubnetsType{}
-	subnets.AddIpamSubnets(
-		&types.IpamSubnetType{
-			Subnet: &types.SubnetType{address, prefixlen}})
-	net.AddNetworkIpam(ipam, subnets)
+	subnet, err := makeSubnet(prefix)
+	if err != nil {
+		return "", err
+	}
+	err = networkAddSubnet(client, project, net, subnet)
+	if err != nil {
+		return "", err
+	}
+
 	err = client.Create(net)
 	if err != nil {
 		return "", err
 	}
 	return net.GetUuid(), nil
+}
+
+// AddSubnet
+// returns true if the network was modified, false if the subnet already exists
+// in the network.
+func AddSubnet(
+	client contrail.ApiClient, network *types.VirtualNetwork, prefix string) (
+	bool, error) {
+
+	ipamRefs, err := network.GetNetworkIpamRefs()
+	if err != nil {
+		return false, err
+	}
+	subnet, err := makeSubnet(prefix)
+	if err != nil {
+		return false, err
+	}
+	for _, ref := range ipamRefs {
+		attr := ref.Attr.(types.VnSubnetsType)
+		for _, entry := range attr.IpamSubnets {
+			if *subnet.Subnet == *entry.Subnet {
+				return false, nil
+			}
+		}
+	}
+
+	fqn := network.GetFQName()
+	project, err := types.ProjectByName(client, strings.Join(fqn[:len(fqn)-1], ":"))
+	if err != nil {
+		return false, err
+	}
+	err = networkAddSubnet(client, project, network, subnet)
+	if err != nil {
+		return false, err
+	}
+	err = client.Update(network)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func CreateNetwork(client contrail.ApiClient, project_id, name string) (

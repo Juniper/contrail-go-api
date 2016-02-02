@@ -2,17 +2,21 @@
 // Copyright (c) 2014 Juniper Networks, Inc. All rights reserved.
 //
 
-package contrail
+package contrail_test
 
 import (
+	"fmt"
 	"github.com/Juniper/contrail-go-api"
 	"github.com/Juniper/contrail-go-api/config"
-	"fmt"
 	"testing"
 )
 
 func TestNetworkList(t *testing.T) {
-	client := contrail.NewClient("localhost", 8082)
+	if !runIntegrationTest() {
+		t.Skip("Skipping integration test")
+	}
+
+	client := contrail.NewClient(testApiServer, testApiPort)
 
 	project_id, err := config.CreateProject(client, "demo", true)
 	if err != nil {
