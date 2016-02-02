@@ -1,4 +1,4 @@
-package contrail
+package contrail_test
 
 import (
 	"fmt"
@@ -8,7 +8,10 @@ import (
 )
 
 func TestClient(t *testing.T) {
-	client := contrail.NewClient("localhost", 8082)
+	if !runIntegrationTest() {
+		t.Skip("Skipping integration test")
+	}
+	client := contrail.NewClient(testApiServer, testApiPort)
 	elements, err := client.List("project")
 	if err != nil {
 		t.Fatal(err)
@@ -42,7 +45,11 @@ func TestClient(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	client := contrail.NewClient("localhost", 8082)
+	if !runIntegrationTest() {
+		t.Skip("Skipping integration test")
+	}
+
+	client := contrail.NewClient(testApiServer, testApiPort)
 	net := types.VirtualNetwork{}
 	net.SetName("test")
 	ipam, err := client.FindByName("network-ipam",
@@ -96,7 +103,11 @@ func TestCreate(t *testing.T) {
 }
 
 func TestPropertyUpdate(t *testing.T) {
-	client := contrail.NewClient("localhost", 8082)
+	if !runIntegrationTest() {
+		t.Skip("Skipping integration test")
+	}
+
+	client := contrail.NewClient(testApiServer, testApiPort)
 	net := types.VirtualNetwork{}
 	net.SetName("test")
 
@@ -130,7 +141,11 @@ func TestPropertyUpdate(t *testing.T) {
 }
 
 func TestReferenceUpdate(t *testing.T) {
-	client := contrail.NewClient("localhost", 8082)
+	if !runIntegrationTest() {
+		t.Skip("Skipping integration test")
+	}
+
+	client := contrail.NewClient(testApiServer, testApiPort)
 	net := types.VirtualNetwork{}
 	net.SetName("test2")
 	ipam, err := client.FindByName("network-ipam",
@@ -213,7 +228,11 @@ func TestReferenceUpdate(t *testing.T) {
 }
 
 func TestListDetail(t *testing.T) {
-	client := contrail.NewClient("localhost", 8082)
+	if !runIntegrationTest() {
+		t.Skip("Skipping integration test")
+	}
+
+	client := contrail.NewClient(testApiServer, testApiPort)
 	objects, err := client.ListDetail("virtual-network", nil)
 	if err != nil {
 		t.Fatal(err)
