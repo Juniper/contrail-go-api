@@ -3,9 +3,19 @@ package contrail_test
 import (
 	"fmt"
 	"github.com/Juniper/contrail-go-api"
+	"github.com/Juniper/contrail-go-api/mocks"
 	"github.com/Juniper/contrail-go-api/types"
 	"testing"
 )
+
+func newTestClient() contrail.ApiClient {
+	if runIntegrationTest() {
+		return contrail.NewClient(testApiServer, testApiPort)
+	}
+	client := new(mocks.ApiClient)
+	client.Init()
+	return client
+}
 
 func TestClient(t *testing.T) {
 	if !runIntegrationTest() {
@@ -45,11 +55,7 @@ func TestClient(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	if !runIntegrationTest() {
-		t.Skip("Skipping integration test")
-	}
-
-	client := contrail.NewClient(testApiServer, testApiPort)
+	client := newTestClient()
 	net := types.VirtualNetwork{}
 	net.SetName("test")
 	ipam, err := client.FindByName("network-ipam",
@@ -103,11 +109,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestPropertyUpdate(t *testing.T) {
-	if !runIntegrationTest() {
-		t.Skip("Skipping integration test")
-	}
-
-	client := contrail.NewClient(testApiServer, testApiPort)
+	client := newTestClient()
 	net := types.VirtualNetwork{}
 	net.SetName("test")
 
@@ -141,11 +143,7 @@ func TestPropertyUpdate(t *testing.T) {
 }
 
 func TestReferenceUpdate(t *testing.T) {
-	if !runIntegrationTest() {
-		t.Skip("Skipping integration test")
-	}
-
-	client := contrail.NewClient(testApiServer, testApiPort)
+	client := newTestClient()
 	net := types.VirtualNetwork{}
 	net.SetName("test2")
 	ipam, err := client.FindByName("network-ipam",
@@ -223,7 +221,107 @@ func TestReferenceUpdate(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	} else if len(refs) != 0 {
-		t.Errorf("Expected: 1 reference, %d actual", len(refs))
+		t.Errorf("Expected: 0 reference, %d actual", len(refs))
+	}
+}
+
+func TestUpdatePolicyReferences(t *testing.T) {
+	client := newTestClient()
+
+	policyAB := new(types.NetworkPolicy)
+	policyAB.SetFQName("project", []string{"default-domain", "default-project", "a-b"})
+	err := client.Create(policyAB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		client.Delete(policyAB)
+	}()
+
+	policyAC := new(types.NetworkPolicy)
+	policyAC.SetFQName("project", []string{"default-domain", "default-project", "a-c"})
+	err = client.Create(policyAC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		client.Delete(policyAC)
+	}()
+
+	networkNames := []string{"a", "b", "c"}
+	networks := make([]*types.VirtualNetwork, 3)
+	for ix, name := range networkNames {
+		network := new(types.VirtualNetwork)
+		network.SetFQName("project", []string{"default-domain", "default-project", name})
+		err := client.Create(network)
+		if err != nil {
+			t.Fatal(err)
+		}
+		networks[ix] = network
+		defer func(i int) {
+			client.Delete(networks[i])
+		}(ix)
+	}
+
+	connect := func(first, second *types.VirtualNetwork, policy *types.NetworkPolicy) error {
+		first.AddNetworkPolicy(policy, types.VirtualNetworkPolicyType{
+			Sequence: &types.SequenceType{10, 0},
+		})
+		err = client.Update(first)
+		if err != nil {
+			return err
+		}
+		second.AddNetworkPolicy(policy, types.VirtualNetworkPolicyType{
+			Sequence: &types.SequenceType{10, 0},
+		})
+		err = client.Update(second)
+		return err
+	}
+
+	err = connect(networks[0], networks[1], policyAB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refsAB, err := policyAB.GetVirtualNetworkBackRefs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refsAB) != 2 {
+		t.Errorf("expected 2 references, got %d", len(refsAB))
+	}
+
+	err = connect(networks[0], networks[2], policyAC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refsAC, err := policyAC.GetVirtualNetworkBackRefs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refsAC) != 2 {
+		t.Errorf("expected 2 references, got %d", len(refsAC))
+	}
+
+	policyRefs, err := networks[0].GetNetworkPolicyRefs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(policyRefs) != 2 {
+		t.Errorf("expected 2 references, got %d", len(policyRefs))
+	}
+
+	networks[0].DeleteNetworkPolicy(policyAB.GetUuid())
+	err = client.Update(networks[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	policyRefs, err = networks[0].GetNetworkPolicyRefs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(policyRefs) != 1 {
+		t.Errorf("expected 1 reference, got %d", len(policyRefs))
 	}
 }
 

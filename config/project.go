@@ -5,20 +5,20 @@
 package config
 
 import (
+	"fmt"
 	"github.com/Juniper/contrail-go-api"
 	"github.com/Juniper/contrail-go-api/types"
-	"fmt"
 	"strings"
 )
 
 func GetProjectId(
-	client *contrail.Client, project_name string, project_id string) (
-		string, error) {
+	client contrail.ApiClient, project_name string, project_id string) (
+	string, error) {
 	if len(project_id) > 0 {
 		uuid := strings.ToLower(project_id)
 		if !IsUuid(uuid) {
 			return "",
-			fmt.Errorf("Invalid uuid value: %s\n", uuid)
+				fmt.Errorf("Invalid uuid value: %s\n", uuid)
 		}
 		return uuid, nil
 	}
@@ -35,13 +35,13 @@ func GetProjectId(
 }
 
 func GetProjectFQN(
-	client *contrail.Client, projectName string, projectId string) (
-		[]string, error) {
+	client contrail.ApiClient, projectName string, projectId string) (
+	[]string, error) {
 	if len(projectId) > 0 {
 		uuid := strings.ToLower(projectId)
 		if !IsUuid(uuid) {
 			return nil,
-			fmt.Errorf("Invalid uuid value: %s\n", uuid)
+				fmt.Errorf("Invalid uuid value: %s\n", uuid)
 		}
 		return client.FQNameByUuid(uuid)
 	}
@@ -55,7 +55,7 @@ func GetProjectFQN(
 }
 
 // TODO: Create default security-group.
-func CreateProject(client *contrail.Client, name string, createIpam bool) (
+func CreateProject(client contrail.ApiClient, name string, createIpam bool) (
 	string, error) {
 	project := new(types.Project)
 	project.SetName(name)
@@ -76,7 +76,7 @@ func CreateProject(client *contrail.Client, name string, createIpam bool) (
 	return project.GetUuid(), nil
 }
 
-func DeleteProject(client *contrail.Client, project_id string) error {
+func DeleteProject(client contrail.ApiClient, project_id string) error {
 	obj, err := client.FindByUuid("project", project_id)
 	if err != nil {
 		return err

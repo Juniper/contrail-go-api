@@ -36,12 +36,14 @@ func TestListByParent(t *testing.T) {
 	client.Init()
 
 	projectNames := []string{"p1", "p2", "p3"}
+	projects := make([]*types.Project, 3)
 	vmNames := []string{"a", "b", "c", "d"}
 
-	for _, projectName := range projectNames {
+	for i, projectName := range projectNames {
 		project := new(types.Project)
 		project.SetFQName("domain", []string{"default-domain", projectName})
 		assert.NoError(t, client.Create(project))
+		projects[i] = project
 
 		for _, vmName := range vmNames {
 			vm := new(types.VirtualMachine)
@@ -50,7 +52,7 @@ func TestListByParent(t *testing.T) {
 		}
 	}
 
-	elements, err := client.ListByParent("virtual-machine", "default-domain:p2")
+	elements, err := client.ListByParent("virtual-machine", projects[1].GetUuid())
 	assert.NoError(t, err)
 	for _, element := range elements {
 		assert.Equal(t, "p2", element.Fq_name[1])

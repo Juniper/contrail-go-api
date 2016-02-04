@@ -50,11 +50,11 @@ func TestUpdateAddBefore(t *testing.T) {
 	client := MockClient{}
 
 	obj.SetClient(&client)
-	list1 := ReferenceList {
+	list1 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", nil},
 		Reference{[]string{"x"}, "1", "", nil},
 	}
-	list2 := ReferenceList {
+	list2 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", nil},
 	}
 	obj.UpdateReference(&obj, "foo", list1, list2)
@@ -72,12 +72,12 @@ func TestUpdateAddAfter(t *testing.T) {
 	client := MockClient{}
 
 	obj.SetClient(&client)
-	list1 := ReferenceList {
+	list1 := ReferenceList{
 		Reference{[]string{"z"}, "3", "", nil},
 		Reference{[]string{"x"}, "9", "", nil},
 		Reference{[]string{"y"}, "2", "", nil},
 	}
-	list2 := ReferenceList {
+	list2 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", nil},
 		Reference{[]string{"z"}, "3", "", nil},
 	}
@@ -96,12 +96,12 @@ func TestUpdateDeleteMid(t *testing.T) {
 	client := MockClient{}
 
 	obj.SetClient(&client)
-	list1 := ReferenceList {
+	list1 := ReferenceList{
 		Reference{[]string{"z"}, "3", "", nil},
 		Reference{[]string{"x"}, "9", "", nil},
 		Reference{[]string{"y"}, "2", "", nil},
 	}
-	list2 := ReferenceList {
+	list2 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", nil},
 		Reference{[]string{"z"}, "3", "", nil},
 		Reference{[]string{"x"}, "9", "", nil},
@@ -127,10 +127,10 @@ func TestUpdateAttrSimpleEqual(t *testing.T) {
 	var a1, a2 TestAttr
 	a1 = "foo"
 	a2 = "foo"
-	list1 := ReferenceList {
+	list1 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a1},
 	}
-	list2 := ReferenceList {
+	list2 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a2},
 	}
 	obj.UpdateReference(&obj, "foo", list1, list2)
@@ -149,22 +149,17 @@ func TestUpdateAttrSimple(t *testing.T) {
 	var a1, a2 TestAttr
 	a1 = "foo"
 	a2 = "bar"
-	list1 := ReferenceList {
+	list1 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a1},
 	}
-	list2 := ReferenceList {
+	list2 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a2},
 	}
 	obj.UpdateReference(&obj, "foo", list1, list2)
-	if len(client.messages) != 2 {
+	if len(client.messages) != 1 {
 		t.Error("No messages generated")
 	}
 	msg := client.messages[0]
-	if msg.RefUuid != "2" || msg.Operation != "DELETE" {
-		t.Error(fmt.Sprintf(
-			"op: %s, id=%s", msg.Operation, msg.RefUuid))
-	}
-	msg = client.messages[1]
 	if msg.RefUuid != "2" || msg.Operation != "ADD" {
 		t.Error(fmt.Sprintf(
 			"op: %s, id=%s", msg.Operation, msg.RefUuid))
@@ -181,18 +176,18 @@ func TestUpdateAttrStructEqual(t *testing.T) {
 		X string
 		Y string
 	}
-	a1 := TestAttr {
+	a1 := TestAttr{
 		X: "x",
 		Y: "foo",
 	}
-	a2 := TestAttr {
+	a2 := TestAttr{
 		X: "x",
 		Y: "foo",
 	}
-	list1 := ReferenceList {
+	list1 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a1},
 	}
-	list2 := ReferenceList {
+	list2 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a2},
 	}
 	obj.UpdateReference(&obj, "foo", list1, list2)
@@ -211,30 +206,25 @@ func TestUpdateAttrStruct(t *testing.T) {
 		X string
 		Y string
 	}
-	a1 := TestAttr {
+	a1 := TestAttr{
 		X: "x",
 		Y: "foo",
 	}
-	a2 := TestAttr {
+	a2 := TestAttr{
 		X: "x",
 		Y: "bar",
 	}
-	list1 := ReferenceList {
+	list1 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a1},
 	}
-	list2 := ReferenceList {
+	list2 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a2},
 	}
 	obj.UpdateReference(&obj, "foo", list1, list2)
-	if len(client.messages) != 2 {
+	if len(client.messages) != 1 {
 		t.Error("No messages generated")
 	}
 	msg := client.messages[0]
-	if msg.RefUuid != "2" || msg.Operation != "DELETE" {
-		t.Error(fmt.Sprintf(
-			"op: %s, id=%s", msg.Operation, msg.RefUuid))
-	}
-	msg = client.messages[1]
 	if msg.RefUuid != "2" || msg.Operation != "ADD" {
 		t.Error(fmt.Sprintf(
 			"op: %s, id=%s", msg.Operation, msg.RefUuid))
@@ -252,16 +242,16 @@ func TestUpdateAttrArrayEqual(t *testing.T) {
 		X string
 		Y string
 	}
-	a1 := []TestAttr {
+	a1 := []TestAttr{
 		TestAttr{X: "x", Y: "foo"},
 	}
-	a2 := []TestAttr {
+	a2 := []TestAttr{
 		TestAttr{X: "x", Y: "foo"},
 	}
-	list1 := ReferenceList {
+	list1 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a1},
 	}
-	list2 := ReferenceList {
+	list2 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a2},
 	}
 	obj.UpdateReference(&obj, "foo", list1, list2)
@@ -280,29 +270,25 @@ func TestUpdateAttrArray(t *testing.T) {
 		X string
 		Y string
 	}
-	a1 := []TestAttr {
+	a1 := []TestAttr{
 		TestAttr{X: "x", Y: "foo"},
 	}
-	a2 := []TestAttr {
+	a2 := []TestAttr{
 		TestAttr{X: "x", Y: "foo"},
 		TestAttr{X: "y", Y: "bar"},
 	}
 
-	list1 := ReferenceList {
+	list1 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a1},
 	}
-	list2 := ReferenceList {
+	list2 := ReferenceList{
 		Reference{[]string{"y"}, "2", "", &a2},
 	}
 	obj.UpdateReference(&obj, "foo", list1, list2)
-	if len(client.messages) != 2 {
+	if len(client.messages) != 1 {
 		t.Error("No messages generated")
 	}
 	msg := client.messages[0]
-	if msg.RefUuid != "2" || msg.Operation != "DELETE" {
-		t.Errorf("op: %s, id=%s", msg.Operation, msg.RefUuid)
-	}
-	msg = client.messages[1]
 	if msg.RefUuid != "2" || msg.Operation != "ADD" {
 		t.Errorf("op: %s, id=%s", msg.Operation, msg.RefUuid)
 	}

@@ -237,6 +237,42 @@ func AddSubnet(
 	return true, nil
 }
 
+func subnetTypeStringRepr(subnet *types.SubnetType) string {
+	return fmt.Sprintf("%s/%d", subnet.IpPrefix, subnet.IpPrefixLen)
+}
+
+func RemoveSubnet(client contrail.ApiClient, network *types.VirtualNetwork, prefix string) error {
+	ipamRefs, err := network.GetNetworkIpamRefs()
+	if err != nil {
+		return err
+	}
+
+	removeOp := func(ix int, uuid string, attr types.VnSubnetsType) error {
+		ipam, err := types.NetworkIpamByUuid(client, uuid)
+		if err != nil {
+			return err
+		}
+		attr.IpamSubnets = append(attr.IpamSubnets[0:ix], attr.IpamSubnets[ix+1:]...)
+		network.DeleteNetworkIpam(uuid)
+		if len(attr.IpamSubnets) > 0 {
+			network.AddNetworkIpam(ipam, attr)
+		}
+		return client.Update(network)
+	}
+
+	for _, ref := range ipamRefs {
+		attr := ref.Attr.(types.VnSubnetsType)
+		for ix, entry := range attr.IpamSubnets {
+			entryPrefix := subnetTypeStringRepr(entry.Subnet)
+			if entryPrefix == prefix {
+				return removeOp(ix, ref.Uuid, attr)
+			}
+		}
+	}
+
+	return fmt.Errorf("Prefix %s not associated with network %s", prefix, network.GetName())
+}
+
 func CreateNetwork(client contrail.ApiClient, project_id, name string) (
 	string, error) {
 

@@ -242,17 +242,18 @@ func attributeEqual(lhs, rhs LinkAttribute) bool {
 	if lhs == nil || rhs == nil {
 		return false
 	}
-	t1 := reflect.TypeOf(lhs).Elem()
-	t2 := reflect.TypeOf(rhs).Elem()
+
+	t1 := reflect.TypeOf(lhs)
+	t2 := reflect.TypeOf(rhs)
 	if t1 != t2 {
 		return false
 	}
-	a1 := reflect.ValueOf(lhs).Elem()
-	a2 := reflect.ValueOf(rhs).Elem()
+	a1 := reflect.ValueOf(lhs)
+	a2 := reflect.ValueOf(rhs)
 	if t1.Kind() == reflect.Slice {
 		return sliceEqual(a1, a2)
 	}
-	return a1.Interface() == a2.Interface()
+	return reflect.DeepEqual(a1.Interface(), a2.Interface())
 }
 
 // Helper function that compares two reference lists and generates the
@@ -281,7 +282,6 @@ func (obj *ObjectBase) UpdateReference(
 			continue
 		} else if !attributeEqual(lhs.Attr, rhs.Attr) {
 			adds = append(adds, lhs)
-			deletes = append(deletes, rhs)
 		}
 		i++
 		j++
