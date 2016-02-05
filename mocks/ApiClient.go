@@ -169,13 +169,13 @@ func (m *ApiClient) List(typename string) ([]contrail.ListResult, error) {
 	return m.ListByParent(typename, "")
 }
 
-func filterByParent(obj contrail.IObject, parent_id string) bool {
-	if parent_id == "" {
-		return false
+func (m *ApiClient) filterByParent(obj contrail.IObject, parent_id string) bool {
+	parent, err := m.getParent(obj)
+	if err != nil {
+		return true
 	}
-	fqn := obj.GetFQName()
-	parentName := strings.Join(fqn[0:len(fqn)-2], ":")
-	return parentName != parent_id
+
+	return parent.GetUuid() != parent_id
 }
 
 func (m *ApiClient) ListByParent(typename string, parent_id string) ([]contrail.ListResult, error) {
@@ -190,7 +190,7 @@ func (m *ApiClient) ListByParent(typename string, parent_id string) ([]contrail.
 	}
 	result := make([]contrail.ListResult, 0, cap)
 	for _, obj := range objList {
-		if filterByParent(obj, parent_id) {
+		if m.filterByParent(obj, parent_id) {
 			continue
 		}
 		element := contrail.ListResult{
@@ -220,7 +220,7 @@ func (m *ApiClient) ListDetailByParent(typename string, parent_id string, fields
 
 	objList := m.db.List(typename)
 	for _, obj := range objList {
-		if filterByParent(obj, parent_id) {
+		if m.filterByParent(obj, parent_id) {
 			continue
 		}
 		elements = append(elements, obj)
