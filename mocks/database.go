@@ -9,24 +9,25 @@ import (
 	"github.com/pborman/uuid"
 )
 
+// Database defines the interface used to mock the behavior of the contrail API server.
 type Database interface {
 	Put(obj contrail.IObject, parent contrail.IObject, refs UIDList) error
 	Update(obj contrail.IObject, refs UIDList) error
 	Delete(obj contrail.IObject) error
-	GetByUuid(id uuid.UUID) (contrail.IObject, error)
+	GetByUUID(id uuid.UUID) (contrail.IObject, error)
 	GetByName(typename string, fqn string) (contrail.IObject, error)
 	List(typename string) []contrail.IObject
 	GetChildren(uid UID, typename string) (UIDList, error)
 	GetBackReferences(uid UID, typename string) (UIDList, error)
 }
 
-// Per typename map of name to object.
+// TypeMap stores per typename map of name to object.
 type TypeMap map[string]contrail.IObject
 
-// references by typename
+// ReferenceMap stores references by typename
 type ReferenceMap map[string]UIDList
 
-// stored reference data
+// ObjectData stores reference data
 type ObjectData struct {
 	parent UID
 
@@ -40,15 +41,17 @@ type ObjectData struct {
 	backRefs ReferenceMap
 }
 
+// InMemDatabase implements the Database interface.
 type InMemDatabase struct {
-	objByIdMap map[UID]contrail.IObject
+	objByIDMap map[UID]contrail.IObject
 	typeDB     map[string]TypeMap
 	objectData map[UID]*ObjectData
 }
 
+// NewInMemDatabase creates and initializes a InMemDatabase.
 func NewInMemDatabase() Database {
 	db := new(InMemDatabase)
-	db.objByIdMap = make(map[UID]contrail.IObject)
+	db.objByIDMap = make(map[UID]contrail.IObject)
 	db.typeDB = make(map[string]TypeMap)
 	db.objectData = make(map[UID]*ObjectData)
 	return db
@@ -80,7 +83,7 @@ func (db *InMemDatabase) deleteChild(parent UID, obj contrail.IObject) error {
 		return fmt.Errorf("Parent %s: no children", parent.Interface().String())
 	}
 	uid := parseUID(obj.GetUuid())
-	var index int = -1
+	var index = -1
 	for i, r := range rList {
 		if r == uid {
 			index = i
@@ -110,8 +113,8 @@ func (db *InMemDatabase) addBackReference(uid UID, typename string, ref UID) err
 	}
 	data.backRefs[typename] = append(rList, ref)
 
-	if obj, ok := db.objByIdMap[uid]; ok {
-		ClearReferenceMask(obj)
+	if obj, ok := db.objByIDMap[uid]; ok {
+		clearReferenceMask(obj)
 	}
 
 	return nil
@@ -126,7 +129,7 @@ func (db *InMemDatabase) deleteBackReference(uid UID, typename string, ref UID) 
 	if !ok {
 		return fmt.Errorf("Object %s: no %s_back_refs", uid.Interface().String(), typename)
 	}
-	var index int = -1
+	var index = -1
 	for i, r := range rList {
 		if r == ref {
 			index = i
@@ -143,8 +146,8 @@ func (db *InMemDatabase) deleteBackReference(uid UID, typename string, ref UID) 
 		data.backRefs[typename] = rList
 	}
 
-	if obj, ok := db.objByIdMap[uid]; ok {
-		ClearReferenceMask(obj)
+	if obj, ok := db.objByIDMap[uid]; ok {
+		clearReferenceMask(obj)
 	}
 
 	return nil
@@ -159,23 +162,23 @@ func (db *InMemDatabase) addBackReferences(obj contrail.IObject, refs UIDList) e
 	return nil
 }
 
-type ByUID []UID
+type uidListSorter []UID
 
-func (x ByUID) Len() int {
+func (x uidListSorter) Len() int {
 	return len(x)
 }
-func (x ByUID) Swap(i, j int) {
+func (x uidListSorter) Swap(i, j int) {
 	y := x[i]
 	x[i], x[j] = x[j], y
 }
-func (x ByUID) Less(i, j int) bool {
+func (x uidListSorter) Less(i, j int) bool {
 	return Compare(x[i], x[j]) < 0
 }
 func (db *InMemDatabase) updateBackReferences(obj contrail.IObject, newRefs, oldRefs UIDList) error {
 	typename := strings.Replace(obj.GetType(), "-", "_", -1)
 	uid := parseUID(obj.GetUuid())
-	sort.Sort(ByUID(newRefs))
-	sort.Sort(ByUID(oldRefs))
+	sort.Sort(uidListSorter(newRefs))
+	sort.Sort(uidListSorter(oldRefs))
 	var i, j int = 0, 0
 	for i < len(oldRefs) && j < len(newRefs) {
 		lhs := oldRefs[i]
@@ -211,9 +214,11 @@ func (db *InMemDatabase) deleteBackReferences(obj contrail.IObject, oldRefs UIDL
 	return nil
 }
 
+// Put adds an object to the database and updates the children list on the parent and the
+// back_references lists of objects that obj refers to.
 func (db *InMemDatabase) Put(obj contrail.IObject, parent contrail.IObject, refs UIDList) error {
 	id := parseUID(obj.GetUuid())
-	if _, ok := db.objByIdMap[id]; ok {
+	if _, ok := db.objByIDMap[id]; ok {
 		return fmt.Errorf("Duplicate id %s", id.Interface().String())
 	}
 
@@ -226,27 +231,28 @@ func (db *InMemDatabase) Put(obj contrail.IObject, parent contrail.IObject, refs
 	if _, ok := typeMap[fqn]; ok {
 		return fmt.Errorf("Duplicate name %s", fqn)
 	}
-	db.objByIdMap[id] = obj
+	db.objByIDMap[id] = obj
 	typeMap[fqn] = obj
 
-	var parentId UID
+	var parentID UID
 	if parent != nil {
-		parentId = parseUID(parent.GetUuid())
+		parentID = parseUID(parent.GetUuid())
 	}
 	db.objectData[id] = &ObjectData{
-		parent:   parentId,
+		parent:   parentID,
 		refs:     refs,
 		children: make(ReferenceMap),
 		backRefs: make(ReferenceMap),
 	}
 	if parent != nil {
 		db.addChild(parent, obj)
-		ClearReferenceMask(parent)
+		clearReferenceMask(parent)
 	}
 	db.addBackReferences(obj, refs)
 	return nil
 }
 
+// Update an object in the database, modifying corresponding references (forward and back).
 func (db *InMemDatabase) Update(obj contrail.IObject, refs UIDList) error {
 	uid := parseUID(obj.GetUuid())
 	data, ok := db.objectData[uid]
@@ -258,6 +264,9 @@ func (db *InMemDatabase) Update(obj contrail.IObject, refs UIDList) error {
 	return nil
 }
 
+// Delete an object and any back references on objects that it refers to. Deletes as rejected
+// for objects that have children or back references mimicing the behavior of
+// the Contrail API server.
 func (db *InMemDatabase) Delete(obj contrail.IObject) error {
 	uid := parseUID(obj.GetUuid())
 	data, ok := db.objectData[uid]
@@ -273,13 +282,13 @@ func (db *InMemDatabase) Delete(obj contrail.IObject) error {
 
 	if !data.parent.IsNIL() {
 		db.deleteChild(data.parent, obj)
-		if parentObj, ok := db.objByIdMap[data.parent]; ok {
-			ClearReferenceMask(parentObj)
+		if parentObj, ok := db.objByIDMap[data.parent]; ok {
+			clearReferenceMask(parentObj)
 		}
 	}
 	db.deleteBackReferences(obj, data.refs)
 
-	delete(db.objByIdMap, uid)
+	delete(db.objByIDMap, uid)
 	delete(db.objectData, uid)
 	typeMap, ok := db.typeDB[obj.GetType()]
 	if !ok {
@@ -290,15 +299,17 @@ func (db *InMemDatabase) Delete(obj contrail.IObject) error {
 	return nil
 }
 
-func (db *InMemDatabase) GetByUuid(id uuid.UUID) (contrail.IObject, error) {
+// GetByUUID retrieves and object by UUID.
+func (db *InMemDatabase) GetByUUID(id uuid.UUID) (contrail.IObject, error) {
 	uid := makeUID(id)
-	obj, ok := db.objByIdMap[uid]
+	obj, ok := db.objByIDMap[uid]
 	if !ok {
 		return nil, fmt.Errorf("%s: Not found", id.String())
 	}
 	return obj, nil
 }
 
+// GetByName retrieves an object specified by colon separated fully qualified name.
 func (db *InMemDatabase) GetByName(typename string, fqn string) (contrail.IObject, error) {
 	typeMap, ok := db.typeDB[typename]
 	if !ok {
@@ -311,6 +322,7 @@ func (db *InMemDatabase) GetByName(typename string, fqn string) (contrail.IObjec
 	return obj, nil
 }
 
+// GetChildren retrieves the list of children.
 func (db *InMemDatabase) GetChildren(uid UID, typename string) (UIDList, error) {
 	nilList := []UID{}
 	data, ok := db.objectData[uid]
@@ -324,6 +336,7 @@ func (db *InMemDatabase) GetChildren(uid UID, typename string) (UIDList, error) 
 	return refList, nil
 }
 
+// GetBackReferences retrieves the list of back references.
 func (db *InMemDatabase) GetBackReferences(uid UID, typename string) (UIDList, error) {
 	nilList := []UID{}
 	data, ok := db.objectData[uid]
@@ -337,6 +350,7 @@ func (db *InMemDatabase) GetBackReferences(uid UID, typename string) (UIDList, e
 	return refList, nil
 }
 
+// List retrieves all objects of a given type.
 func (db *InMemDatabase) List(typename string) []contrail.IObject {
 	nilList := []contrail.IObject{}
 	typeMap, ok := db.typeDB[typename]

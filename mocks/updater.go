@@ -11,12 +11,17 @@ type objectUpdater struct {
 	db Database
 }
 
+// NewObjectUpdater returns an object the implements the contrail.objectInterface interface.
+// These are the methods provoded to the generated types classes that allow them to manage
+// get, add and delete operations on references.
 func NewObjectUpdater(db Database) *objectUpdater {
 	updater := new(objectUpdater)
 	updater.db = db
 	return updater
 }
 
+// GetField retrieves a reference list.
+//
 // On forward refs do nothing. For children and back_refs fetch content from DB.
 func (u *objectUpdater) GetField(obj contrail.IObject, field string) error {
 	var idList UIDList
@@ -41,7 +46,7 @@ func (u *objectUpdater) GetField(obj contrail.IObject, field string) error {
 	refList := make(contrail.ReferenceList, len(idList))
 	for i, id := range idList {
 		refList[i].Uuid = id.Interface().String()
-		obj, err := u.db.GetByUuid(id.Interface())
+		obj, err := u.db.GetByUUID(id.Interface())
 		if err != nil {
 			continue
 		}
@@ -50,29 +55,29 @@ func (u *objectUpdater) GetField(obj contrail.IObject, field string) error {
 		copy(refList[i].To, fqn)
 	}
 
-	listJson, err := json.Marshal(refList)
+	listJSON, err := json.Marshal(refList)
 	if err != nil {
 		return err
 	}
-	var listRaw json.RawMessage = listJson
+	var listRaw json.RawMessage = listJSON
 
-	fqnJson, err := json.Marshal(obj.GetFQName())
+	fqnJSON, err := json.Marshal(obj.GetFQName())
 	if err != nil {
 		return err
 	}
-	fqnRaw := json.RawMessage(fqnJson)
+	fqnRaw := json.RawMessage(fqnJSON)
 
-	uuidJson, err := json.Marshal(obj.GetUuid())
+	uuidJSON, err := json.Marshal(obj.GetUuid())
 	if err != nil {
 		return err
 	}
-	uuidRaw := json.RawMessage(uuidJson)
+	uuidRaw := json.RawMessage(uuidJSON)
 
-	nameJson, err := json.Marshal(obj.GetName())
+	nameJSON, err := json.Marshal(obj.GetName())
 	if err != nil {
 		return err
 	}
-	nameRaw := json.RawMessage(nameJson)
+	nameRaw := json.RawMessage(nameJSON)
 
 	msg := map[string]*json.RawMessage{
 		"fq_name": &fqnRaw,
@@ -87,6 +92,8 @@ func (u *objectUpdater) GetField(obj contrail.IObject, field string) error {
 	return json.Unmarshal(data, obj)
 }
 
+// UpdateReference is a NOP. The updates to back references are done by the database
+// Update operation.
 func (u *objectUpdater) UpdateReference(msg *contrail.ReferenceUpdateMsg) error {
 	return nil
 }

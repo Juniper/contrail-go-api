@@ -6,35 +6,39 @@ package contrail
 
 import (
 	"bytes"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 )
 
+// KeystoneClient is a client of the OpenStack Keystone service that adds authentication
+// tokens to the Contrail API requests.
 type KeystoneClient struct {
-	os_auth_url string
-	os_tenant_name string
-	os_username string
-	os_password string
-	os_token string
+	osAuthURL    string
+	osTenantName string
+	osUsername   string
+	osPassword   string
+	osAdminToken string
 
 	current *KeystoneToken
 }
 
-// Token issued by keystone
+// KeystoneToken represents an auth token issued by OpenStack keystone service.
+// The field names are defined by the Keystone API schema.
 type KeystoneToken struct {
-	Id string
+	Id      string
 	Expires string
-	Tenant struct {
-		Id string
-		Name string
+	Tenant  struct {
+		Id          string
+		Name        string
 		Description string
-		Enabled bool
+		Enabled     bool
 	}
 	Issued_At string
 }
 
+// NewKeystoneClient allocates and initializes a KeystoneClient
 func NewKeystoneClient(auth_url, tenant_name, username, password, token string) *KeystoneClient {
 	return &KeystoneClient{
 		auth_url,
@@ -46,7 +50,7 @@ func NewKeystoneClient(auth_url, tenant_name, username, password, token string) 
 	}
 }
 
-// Generate authentication request to keystone.
+// Authenticate sends an authentication request to keystone.
 func (kClient *KeystoneClient) Authenticate() error {
 	// identity:CredentialType
 	type AuthTokenRequest struct {
@@ -58,7 +62,7 @@ func (kClient *KeystoneClient) Authenticate() error {
 	}
 	type AuthCredentialsRequest struct {
 		Auth struct {
-			TenantName string `json:"tenantName"`
+			TenantName          string `json:"tenantName"`
 			PasswordCredentials struct {
 				Username string `json:"username"`
 				Password string `json:"password"`
@@ -70,32 +74,32 @@ func (kClient *KeystoneClient) Authenticate() error {
 	type TokenResponse struct {
 		Access struct {
 			Token KeystoneToken
-			User struct {
-				Id string
+			User  struct {
+				Id       string
 				Username string
 			}
 			// ServiceCatalog
 		}
 	}
-	url := kClient.os_auth_url
-	if url[len(url) - 1] != '/' {
+	url := kClient.osAuthURL
+	if url[len(url)-1] != '/' {
 		url += "/"
 	}
 	url += "tokens"
 
 	var data []byte
 	var err error
-	if len(kClient.os_token) > 0 {
+	if len(kClient.osAdminToken) > 0 {
 		request := AuthTokenRequest{}
-		request.Auth.Token.Id = kClient.os_token
+		request.Auth.Token.Id = kClient.osAdminToken
 		data, err = json.Marshal(&request)
 	} else {
 		request := AuthCredentialsRequest{}
 		request.Auth.PasswordCredentials.Username =
-			kClient.os_username
+			kClient.osUsername
 		request.Auth.PasswordCredentials.Password =
-			kClient.os_password
-		request.Auth.TenantName = kClient.os_tenant_name
+			kClient.osPassword
+		request.Auth.TenantName = kClient.osTenantName
 		data, err = json.Marshal(&request)
 	}
 	if err != nil {
@@ -131,7 +135,7 @@ func (kClient *KeystoneClient) Authenticate() error {
 	return nil
 }
 
-// Add the authentication data to the HTTP header.
+// AddAuthentication adds the authentication data to the HTTP header.
 func (kClient *KeystoneClient) AddAuthentication(req *http.Request) error {
 	if kClient.current == nil {
 		err := kClient.Authenticate()

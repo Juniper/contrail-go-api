@@ -8,7 +8,9 @@ import (
 	"github.com/Juniper/contrail-go-api"
 )
 
-func GetReferenceList(obj contrail.IObject) UIDList {
+// getReferenceList retrieves the list of UUIDs this object has a forward reference to
+// using reflection.
+func getReferenceList(obj contrail.IObject) UIDList {
 	refList := make([]UID, 0, 8)
 	value := reflect.ValueOf(obj).Elem()
 	typeval := value.Type()
@@ -30,7 +32,10 @@ func GetReferenceList(obj contrail.IObject) UIDList {
 	return refList
 }
 
-func ClearReferenceMask(obj contrail.IObject) {
+// clearReferenceMask resets the valid bitmask on an object, after an update operation.
+// The valid mask is used by the generated types object to keep track of what reference
+// list it has a valid cached entry for.
+func clearReferenceMask(obj contrail.IObject) {
 	value := reflect.ValueOf(obj).Elem()
 	field := value.FieldByName("valid")
 	maskptr := (*uint64)(unsafe.Pointer(field.UnsafeAddr()))

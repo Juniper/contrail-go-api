@@ -9,18 +9,23 @@ import (
 	"github.com/pborman/uuid"
 )
 
+// TypeInterceptor defines an interface that intercepts Put and Get requests to the API.
+// Typically used to simulate API server behavior that is type specific. An example is
+// the API server determining the Gateway address on a Subnet.
 type TypeInterceptor interface {
 	Get(contrail.IObject)
 	Put(contrail.IObject)
 }
 
+// ApiClient mocks the contrail.ApiClient interface.
 type ApiClient struct {
-	IdAssignMap    map[string]string
+	IDAssignMap    map[string]string
 	InterceptorMap map[string]TypeInterceptor
 	db             Database
 	updater        *objectUpdater
 }
 
+// Init initializes the database with default values such as the default-project and ipam.
 func (m *ApiClient) Init() {
 	m.db = NewInMemDatabase()
 
@@ -52,6 +57,7 @@ func objName(ptr contrail.IObject) string {
 	return ptr.GetType() + ":" + strings.Join(ptr.GetFQName(), ":")
 }
 
+// AddInterceptor is used to apply a type-specific hook for GET and PUT requests.
 func (m *ApiClient) AddInterceptor(typename string, interceptor TypeInterceptor) {
 	if m.InterceptorMap == nil {
 		m.InterceptorMap = make(map[string]TypeInterceptor)
@@ -83,15 +89,16 @@ func (m *ApiClient) getParent(obj contrail.IObject) (contrail.IObject, error) {
 		return nil, nil
 	}
 	fqn := obj.GetFQName()
-	parent_name := fqn[:len(fqn)-1]
-	return m.db.GetByName(typename, strings.Join(parent_name, ":"))
+	parentName := fqn[:len(fqn)-1]
+	return m.db.GetByName(typename, strings.Join(parentName, ":"))
 }
 
+// Create adds an object to the database.
 func (m *ApiClient) Create(ptr contrail.IObject) error {
 	if ptr.GetUuid() == "" {
 		isSet := false
-		if m.IdAssignMap != nil {
-			if id, ok := m.IdAssignMap[objName(ptr)]; ok {
+		if m.IDAssignMap != nil {
+			if id, ok := m.IDAssignMap[objName(ptr)]; ok {
 				ptr.SetUuid(id)
 				isSet = true
 			}
@@ -107,7 +114,7 @@ func (m *ApiClient) Create(ptr contrail.IObject) error {
 	}
 	m.interceptPut(ptr)
 
-	refList := GetReferenceList(ptr)
+	refList := getReferenceList(ptr)
 
 	m.db.Put(ptr, parent, refList)
 	ptr.SetClient(m.updater)
@@ -115,14 +122,16 @@ func (m *ApiClient) Create(ptr contrail.IObject) error {
 	return nil
 }
 
+// Update modifies the object in the database.
 func (m *ApiClient) Update(ptr contrail.IObject) error {
-	refList := GetReferenceList(ptr)
+	refList := getReferenceList(ptr)
 	m.db.Update(ptr, refList)
 	return nil
 }
 
+// DeleteByUuid removes the object identified by the specified uuid.
 func (m *ApiClient) DeleteByUuid(typename string, id string) error {
-	obj, err := m.db.GetByUuid(uuid.Parse(id))
+	obj, err := m.db.GetByUUID(uuid.Parse(id))
 	if err != nil {
 		return err
 	}
@@ -130,18 +139,22 @@ func (m *ApiClient) DeleteByUuid(typename string, id string) error {
 	return m.db.Delete(obj)
 }
 
+// Delete an object.
 func (m *ApiClient) Delete(ptr contrail.IObject) error {
 	return m.db.Delete(ptr)
 }
 
+// FindByUuid retrieves the object specified by uuid.
 func (m *ApiClient) FindByUuid(typename string, id string) (contrail.IObject, error) {
-	obj, err := m.db.GetByUuid(uuid.Parse(id))
+	obj, err := m.db.GetByUUID(uuid.Parse(id))
 	if err != nil {
 		return nil, err
 	}
 	m.interceptGet(obj)
 	return obj, nil
 }
+
+// UuidByName retrieves the uuid given a fully qualified name as a colon (:) delimited string.
 func (m *ApiClient) UuidByName(typename string, fqn string) (string, error) {
 	obj, err := m.db.GetByName(typename, fqn)
 	if err != nil {
@@ -149,13 +162,17 @@ func (m *ApiClient) UuidByName(typename string, fqn string) (string, error) {
 	}
 	return obj.GetUuid(), nil
 }
+
+// FQNameByUuid retrieves the fully qualified name corresponding to a UUID.
 func (m *ApiClient) FQNameByUuid(id string) ([]string, error) {
-	obj, err := m.db.GetByUuid(uuid.Parse(id))
+	obj, err := m.db.GetByUUID(uuid.Parse(id))
 	if err != nil {
 		return []string{}, err
 	}
 	return obj.GetFQName(), nil
 }
+
+// FindByName reads the database object identified by a colon (:) delimited string.
 func (m *ApiClient) FindByName(typename string, fqn string) (contrail.IObject, error) {
 	obj, err := m.db.GetByName(typename, fqn)
 	if err != nil {
@@ -165,6 +182,7 @@ func (m *ApiClient) FindByName(typename string, fqn string) (contrail.IObject, e
 	return obj, nil
 }
 
+// List retrives the identifiers of all objects of a given type.
 func (m *ApiClient) List(typename string) ([]contrail.ListResult, error) {
 	return m.listByParentImpl(typename, nil)
 }
@@ -182,6 +200,8 @@ func (m *ApiClient) filterByParent(obj contrail.IObject, parentID uuid.UUID) boo
 	return !uuid.Equal(uuid.Parse(parent.GetUuid()), parentID)
 }
 
+// ListByParent retrieves the identifiers of objects of the specified type that are descendents
+// of parent (as identified by UUID)
 func (m *ApiClient) ListByParent(typename string, parentID string) ([]contrail.ListResult, error) {
 	parentUUID := uuid.Parse(parentID)
 	if parentUUID == nil {
@@ -214,6 +234,7 @@ func (m *ApiClient) listByParentImpl(typename string, parentID uuid.UUID) ([]con
 	return result, nil
 }
 
+// ListDetail reads all the objects of a given type.
 func (m *ApiClient) ListDetail(typename string, fields []string) ([]contrail.IObject, error) {
 	nilList := []contrail.IObject{}
 	if _, ok := types.TypeMap[typename]; !ok {
@@ -223,6 +244,8 @@ func (m *ApiClient) ListDetail(typename string, fields []string) ([]contrail.IOb
 	return objList, nil
 }
 
+// ListDetailByParent reads all the objects of the specified type that are descendants of the parent
+// object (as specified by UUID).
 func (m *ApiClient) ListDetailByParent(typename string, parentID string, fields []string) ([]contrail.IObject, error) {
 	elements := make([]contrail.IObject, 0)
 	if _, ok := types.TypeMap[typename]; !ok {
