@@ -166,31 +166,42 @@ func (m *ApiClient) FindByName(typename string, fqn string) (contrail.IObject, e
 }
 
 func (m *ApiClient) List(typename string) ([]contrail.ListResult, error) {
-	return m.ListByParent(typename, "")
+	return m.listByParentImpl(typename, nil)
 }
 
-func (m *ApiClient) filterByParent(obj contrail.IObject, parent_id string) bool {
+// Return true if the object should be excluded from the results.
+func (m *ApiClient) filterByParent(obj contrail.IObject, parentID uuid.UUID) bool {
+	if parentID == nil {
+		return false
+	}
 	parent, err := m.getParent(obj)
 	if err != nil {
 		return true
 	}
 
-	return parent.GetUuid() != parent_id
+	return !uuid.Equal(uuid.Parse(parent.GetUuid()), parentID)
 }
 
-func (m *ApiClient) ListByParent(typename string, parent_id string) ([]contrail.ListResult, error) {
-	nilList := []contrail.ListResult{}
+func (m *ApiClient) ListByParent(typename string, parentID string) ([]contrail.ListResult, error) {
+	parentUUID := uuid.Parse(parentID)
+	if parentUUID == nil {
+		return nil, fmt.Errorf("Invalid uuid: %s", parentID)
+	}
+	return m.listByParentImpl(typename, parentUUID)
+}
+
+func (m *ApiClient) listByParentImpl(typename string, parentID uuid.UUID) ([]contrail.ListResult, error) {
 	if _, ok := types.TypeMap[typename]; !ok {
-		return nilList, fmt.Errorf("404 Not Found")
+		return nil, fmt.Errorf("404 Not Found")
 	}
 	objList := m.db.List(typename)
 	cap := 0
-	if parent_id == "" {
+	if parentID == nil {
 		cap = len(objList)
 	}
 	result := make([]contrail.ListResult, 0, cap)
 	for _, obj := range objList {
-		if m.filterByParent(obj, parent_id) {
+		if m.filterByParent(obj, parentID) {
 			continue
 		}
 		element := contrail.ListResult{
@@ -212,15 +223,19 @@ func (m *ApiClient) ListDetail(typename string, fields []string) ([]contrail.IOb
 	return objList, nil
 }
 
-func (m *ApiClient) ListDetailByParent(typename string, parent_id string, fields []string) ([]contrail.IObject, error) {
+func (m *ApiClient) ListDetailByParent(typename string, parentID string, fields []string) ([]contrail.IObject, error) {
 	elements := make([]contrail.IObject, 0)
 	if _, ok := types.TypeMap[typename]; !ok {
-		return elements, fmt.Errorf("404 Not Found")
+		return nil, fmt.Errorf("404 Not Found")
+	}
+	parentUUID := uuid.Parse(parentID)
+	if parentUUID == nil {
+		return nil, fmt.Errorf("Invalid uuid: %s", parentID)
 	}
 
 	objList := m.db.List(typename)
 	for _, obj := range objList {
-		if m.filterByParent(obj, parent_id) {
+		if m.filterByParent(obj, parentUUID) {
 			continue
 		}
 		elements = append(elements, obj)
