@@ -33,13 +33,18 @@ type objectInterface interface {
 	UpdateReference(*ReferenceUpdateMsg) error
 }
 
+// The Authenticator interface is used to add an autentication token on a per
+// request basis. This is used by the Keystone authentication class to decorate
+// the requests with a token.
 type Authenticator interface {
 	AddAuthentication(*http.Request) error
 }
 
+// NopAuthenticator is an authentication that doesn't modify the request.
 type NopAuthenticator struct {
 }
 
+// AddAuthentication implements the Authenticator interface for NopAuthenticator.
 func (*NopAuthenticator) AddAuthentication(*http.Request) error {
 	return nil
 }
@@ -55,12 +60,12 @@ type ApiClient interface {
 	FQNameByUuid(uuid string) ([]string, error)
 	FindByName(typename string, fqn string) (IObject, error)
 	List(typename string) ([]ListResult, error)
-	ListByParent(typename string, parent_id string) ([]ListResult, error)
+	ListByParent(typename string, parentID string) ([]ListResult, error)
 	ListDetail(typename string, fields []string) ([]IObject, error)
-	ListDetailByParent(typename string, parent_id string, fields []string) ([]IObject, error)
+	ListDetailByParent(typename string, parentID string, fields []string) ([]IObject, error)
 }
 
-// A client of the OpenContrail API server.
+// A Client of the OpenContrail API server.
 type Client struct {
 	server     string
 	port       int
@@ -68,7 +73,7 @@ type Client struct {
 	auth       Authenticator
 }
 
-// The Client List API returns an array of ListResult entries.
+// ListResult is the return type of the {List, ListByParent} API calls.
 type ListResult struct {
 	Fq_name []string
 	Href    string
@@ -79,10 +84,8 @@ var (
 	typeMap TypeMap
 )
 
-// Allocates and initialized a client.
+// NewClient allocates and initializes a Contrail API client.
 //
-// The typeMap parameter specifies a map of name, reflection Type values
-// use to deserialize the data received from the server.
 func NewClient(server string, port int) *Client {
 	client := new(Client)
 	client.server = server
@@ -92,12 +95,15 @@ func NewClient(server string, port int) *Client {
 	return client
 }
 
-func (client *Client) GetServer() string {
-	return client.server
+// GetServer retrieves the name or address of the Contrail API server.
+func (c *Client) GetServer() string {
+	return c.server
 }
 
-func (client *Client) SetAuthenticator(auth Authenticator) {
-	client.auth = auth
+// SetAuthenticator enables the user to configure an Authenticator (e.g. Keystone)
+// to be used by Contrail API requests.
+func (c *Client) SetAuthenticator(auth Authenticator) {
+	c.auth = auth
 }
 
 func typename(ptr IObject) string {
@@ -311,6 +317,7 @@ func (c *Client) Update(ptr IObject) error {
 	return nil
 }
 
+// DeleteByUuid deletes the specified object.
 func (c *Client) DeleteByUuid(typename, uuid string) error {
 	url := fmt.Sprintf("http://%s:%d/%s/%s",
 		c.server, c.port, typename, uuid)
@@ -350,13 +357,14 @@ func (c *Client) Delete(ptr IObject) error {
 	return nil
 }
 
-// Read an object identified by UUID.
+// FindByUuid reads an object identified by UUID.
 func (c *Client) FindByUuid(typename string, uuid string) (IObject, error) {
 	url := fmt.Sprintf("http://%s:%d/%s/%s", c.server, c.port,
 		typename, uuid)
 	return c.readObject(typename, url)
 }
 
+// UuidByName returns the UUID of an object as identified by its fully qualified name.
 func (c *Client) UuidByName(typename string, fqn string) (string, error) {
 	url := fmt.Sprintf("http://%s:%d/fqname-to-id", c.server, c.port)
 	request := struct {
@@ -395,6 +403,7 @@ func (c *Client) UuidByName(typename string, fqn string) (string, error) {
 	return m.Uuid, nil
 }
 
+// FQNameByUuid returns the fully-qualified name of an object as identified by a UUID.
 func (c *Client) FQNameByUuid(uuid string) ([]string, error) {
 	request := struct {
 		Uuid string `json:"uuid"`
@@ -429,7 +438,7 @@ func (c *Client) FQNameByUuid(uuid string) ([]string, error) {
 	return response.Fq_name, err
 }
 
-// Read an object identified by fully-qualified name represented as a
+// FindByName reads an object identified by fully-qualified name represented as a
 // string.
 func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
 	uuid, err := c.UuidByName(typename, fqn)
@@ -441,13 +450,14 @@ func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
 	return c.readObject(typename, href)
 }
 
-// Retrieve the list of all elements of a specific type.
+// ListByParent retrieves the identifiers of the objects of a specific type that are
+// descendents of a specific object.
 func (c *Client) ListByParent(
-	typename string, parent_id string) ([]ListResult, error) {
+	typename string, parentID string) ([]ListResult, error) {
 	var values url.Values
 	values = make(url.Values, 0)
-	if len(parent_id) > 0 {
-		values.Add("parent_id", parent_id)
+	if len(parentID) > 0 {
+		values.Add("parent_id", parentID)
 	}
 
 	url := fmt.Sprintf("http://%s:%d/%ss", c.server, c.port, typename)
@@ -484,17 +494,20 @@ func (c *Client) ListByParent(
 	return rlist, err
 }
 
+// List retrieves the identifiers of all objects of a given type.
 func (c *Client) List(typename string) ([]ListResult, error) {
 	return c.ListByParent(typename, "")
 }
 
+// ListDetailByParent reads all the objects of a given type that are descendents of the
+// specified parent object.
 func (c *Client) ListDetailByParent(
-	typename string, parent_id string, fields []string) (
+	typename string, parentID string, fields []string) (
 	[]IObject, error) {
 	var values url.Values
 	values = make(url.Values, 0)
-	if len(parent_id) > 0 {
-		values.Add("parent_id", parent_id)
+	if len(parentID) > 0 {
+		values.Add("parent_id", parentID)
 	}
 	for _, field := range fields {
 		values.Add("fields", field)
@@ -563,12 +576,14 @@ func (c *Client) ListDetailByParent(
 	return result, nil
 }
 
+// ListDetail reads all the objects of a specific type.
 func (c *Client) ListDetail(typename string, fields []string) (
 	[]IObject, error) {
 	return c.ListDetailByParent(typename, "", fields)
 }
 
-// Retrieve a specified field of an object from the API server.
+// GetField retrieves a specified field of an object from the API server.
+// This API is used by the generated types library to retrieve reference lists.
 func (c *Client) GetField(obj IObject, field string) error {
 	url := fmt.Sprintf("%s?fields=%s", obj.GetHref(), field)
 	resp, err := c.httpGet(url)
@@ -596,7 +611,8 @@ func (c *Client) GetField(obj IObject, field string) error {
 	return json.Unmarshal(m[obj.GetType()], obj)
 }
 
-// Send a reference update message to the API server.
+// UpdateReference sends a reference update message to the API server.
+// Used by the generated types library.
 func (c *Client) UpdateReference(msg *ReferenceUpdateMsg) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -620,6 +636,8 @@ func (c *Client) UpdateReference(msg *ReferenceUpdateMsg) error {
 	return nil
 }
 
+// RegisterTypeMap is used by the generated types library to register the list of known
+// object types.
 func RegisterTypeMap(m TypeMap) {
 	typeMap = m
 }

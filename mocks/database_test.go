@@ -28,7 +28,7 @@ func TestReference(t *testing.T) {
 			Subnet: &types.SubnetType{"10.0.0.0", 8}})
 
 	net.AddNetworkIpam(ipam, subnets)
-	refs := GetReferenceList(net)
+	refs := getReferenceList(net)
 	assert.NoError(t, db.Put(net, nil, refs))
 
 	result, err := db.GetBackReferences(parseUID(ipam.GetUuid()), "virtual_network")
@@ -54,7 +54,7 @@ func TestUpdateRefs(t *testing.T) {
 	vmi1.AddVirtualMachine(instances[0])
 	vmi1.AddVirtualMachine(instances[1])
 	vmi1.AddVirtualMachine(instances[2])
-	assert.NoError(t, db.Put(vmi1, nil, GetReferenceList(vmi1)))
+	assert.NoError(t, db.Put(vmi1, nil, getReferenceList(vmi1)))
 
 	vmi2 := new(types.VirtualMachineInterface)
 	vmi2.SetUuid(uuid.New())
@@ -62,7 +62,7 @@ func TestUpdateRefs(t *testing.T) {
 	vmi2.AddVirtualMachine(instances[2])
 	vmi2.AddVirtualMachine(instances[4])
 	vmi2.AddVirtualMachine(instances[3])
-	assert.NoError(t, db.Put(vmi2, nil, GetReferenceList(vmi2)))
+	assert.NoError(t, db.Put(vmi2, nil, getReferenceList(vmi2)))
 
 	r2, err := db.GetBackReferences(parseUID(instances[2].GetUuid()), "virtual_machine_interface")
 	assert.NoError(t, err)
@@ -77,7 +77,7 @@ func TestUpdateRefs(t *testing.T) {
 	vmi2.ClearVirtualMachine()
 	vmi2.AddVirtualMachine(instances[4])
 	vmi2.AddVirtualMachine(instances[6])
-	assert.NoError(t, db.Update(vmi2, GetReferenceList(vmi2)))
+	assert.NoError(t, db.Update(vmi2, getReferenceList(vmi2)))
 
 	r2, err = db.GetBackReferences(parseUID(instances[2].GetUuid()), "virtual_machine_interface")
 	assert.NoError(t, err)
@@ -98,7 +98,7 @@ func TestUpdateRefs(t *testing.T) {
 	vmi1.AddVirtualMachine(instances[1])
 	vmi1.AddVirtualMachine(instances[5])
 	vmi1.AddVirtualMachine(instances[4])
-	assert.NoError(t, db.Update(vmi1, GetReferenceList(vmi1)))
+	assert.NoError(t, db.Update(vmi1, getReferenceList(vmi1)))
 
 	r4, err = db.GetBackReferences(parseUID(instances[4].GetUuid()), "virtual_machine_interface")
 	assert.NoError(t, err)
@@ -118,17 +118,17 @@ func TestUpdateOne(t *testing.T) {
 	vmi1 := new(types.VirtualMachineInterface)
 	vmi1.SetUuid(uuid.New())
 	vmi1.SetName("port1")
-	assert.NoError(t, db.Put(vmi1, nil, GetReferenceList(vmi1)))
+	assert.NoError(t, db.Put(vmi1, nil, getReferenceList(vmi1)))
 
 	vmi1.AddVirtualMachine(instance)
-	assert.NoError(t, db.Update(vmi1, GetReferenceList(vmi1)))
+	assert.NoError(t, db.Update(vmi1, getReferenceList(vmi1)))
 
 	result, err := db.GetBackReferences(parseUID(instance.GetUuid()), "virtual_machine_interface")
 	assert.NoError(t, err)
 	assert.Contains(t, result, parseUID(vmi1.GetUuid()))
 
 	vmi1.ClearVirtualMachine()
-	assert.NoError(t, db.Update(vmi1, GetReferenceList(vmi1)))
+	assert.NoError(t, db.Update(vmi1, getReferenceList(vmi1)))
 	result, err = db.GetBackReferences(parseUID(instance.GetUuid()), "virtual_machine_interface")
 	assert.NoError(t, err)
 	assert.Len(t, result, 0)
@@ -142,19 +142,19 @@ func TestDeleteRefs(t *testing.T) {
 	vmi1 := new(types.VirtualMachineInterface)
 	vmi1.SetUuid(uuid.New())
 	vmi1.SetName("port1")
-	assert.NoError(t, db.Put(vmi1, nil, GetReferenceList(vmi1)))
+	assert.NoError(t, db.Put(vmi1, nil, getReferenceList(vmi1)))
 
 	vmi2 := new(types.VirtualMachineInterface)
 	vmi2.SetUuid(uuid.New())
 	vmi2.SetName("port2")
-	assert.NoError(t, db.Put(vmi2, nil, GetReferenceList(vmi2)))
+	assert.NoError(t, db.Put(vmi2, nil, getReferenceList(vmi2)))
 
 	fip := new(types.FloatingIp)
 	fip.SetUuid(uuid.New())
 	fip.SetName("fip")
 	fip.AddVirtualMachineInterface(vmi1)
 	fip.AddVirtualMachineInterface(vmi2)
-	assert.NoError(t, db.Put(fip, nil, GetReferenceList(fip)))
+	assert.NoError(t, db.Put(fip, nil, getReferenceList(fip)))
 
 	assert.Error(t, db.Delete(vmi1))
 
@@ -177,7 +177,7 @@ func TestChildrenRefs(t *testing.T) {
 	project := new(types.Project)
 	project.SetUuid(uuid.New())
 	project.SetName("p1")
-	assert.NoError(t, db.Put(project, nil, GetReferenceList(project)))
+	assert.NoError(t, db.Put(project, nil, getReferenceList(project)))
 
 	net := new(types.VirtualNetwork)
 	net.SetUuid(uuid.New())
@@ -188,13 +188,13 @@ func TestChildrenRefs(t *testing.T) {
 	vmi1.SetUuid(uuid.New())
 	vmi1.SetName("port1")
 	vmi1.AddVirtualNetwork(net)
-	assert.NoError(t, db.Put(vmi1, project, GetReferenceList(vmi1)))
+	assert.NoError(t, db.Put(vmi1, project, getReferenceList(vmi1)))
 
 	vmi2 := new(types.VirtualMachineInterface)
 	vmi2.SetUuid(uuid.New())
 	vmi2.SetName("port2")
 	vmi2.AddVirtualNetwork(net)
-	assert.NoError(t, db.Put(vmi2, project, GetReferenceList(vmi2)))
+	assert.NoError(t, db.Put(vmi2, project, getReferenceList(vmi2)))
 
 	result, err := db.GetChildren(parseUID(project.GetUuid()), "virtual_network")
 	assert.NoError(t, err)

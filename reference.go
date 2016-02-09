@@ -4,26 +4,29 @@
 
 package contrail
 
+// LinkAttribute is an attribute on a link between two objects.
 type LinkAttribute interface {
 }
 
 // A Reference represents a link (and optional associated metadata) between
 // two objects.
 type Reference struct {
-	To []string `json:"to,omitempty"`
-	Uuid string `json:"uuid,omitempty"`
-	Href string `json:"href,omitempty"`
+	To   []string      `json:"to,omitempty"`
+	Uuid string        `json:"uuid,omitempty"`
+	Href string        `json:"href,omitempty"`
 	Attr LinkAttribute `json:"attr,omitempty"`
 }
 
+// ReferenceList is a slice (list) of references
 type ReferenceList []Reference
 
+// A ReferencePair is the data used to add a reference.
 type ReferencePair struct {
-	Object IObject
+	Object    IObject
 	Attribute LinkAttribute
 }
 
-// POST to http://server:port/ref-update
+// ReferenceUpdateMsg is the data type used by POST requests to http://server:port/ref-update
 type ReferenceUpdateMsg struct {
 	// object typename
 	Type string `json:"type"`

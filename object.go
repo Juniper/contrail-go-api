@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-// Interface implemented by auto-generated types.
+// IObject describes the interface implemented by auto-generated types.
 type IObject interface {
 	GetDefaultParent() []string
 	GetDefaultParentType() string
@@ -33,7 +33,7 @@ type IObject interface {
 	UpdateDone()
 }
 
-// ObjectBase class
+// ObjectBase is used as base class by the auto-generated types.
 type ObjectBase struct {
 	fq_name     []string
 	href        string
@@ -49,7 +49,7 @@ type ObjectBase struct {
 	parent    IObject
 }
 
-// Used by IObject.SetName methods.
+// VSetName implements IObject.SetName methods.
 //
 // The implementation must be able to access both the ObjectBase fields
 // as well as the IObject interface in order to retrieve data specific to
@@ -71,6 +71,8 @@ func (obj *ObjectBase) VSetName(vPtr IObject, name string) {
 	}
 }
 
+// VSetParent is used by the auto-generated types library to set the parent of an
+// object that is being created.
 func (obj *ObjectBase) VSetParent(vPtr IObject, parent IObject) {
 	obj.parent = parent
 	if len(obj.name) > 0 {
@@ -78,17 +80,17 @@ func (obj *ObjectBase) VSetParent(vPtr IObject, parent IObject) {
 	}
 }
 
-// Accessor for object (unqualified) name
+// GetName is the accessor method for object (unqualified) name
 func (obj *ObjectBase) GetName() string {
 	return obj.name
 }
 
-// Accessor for object uuid.
+// GetUuid is the accessor for object uuid.
 func (obj *ObjectBase) GetUuid() string {
 	return obj.uuid
 }
 
-// Setter for uuid.
+// SetUuid set for object uuid on transient objects.
 func (obj *ObjectBase) SetUuid(uuid string) {
 	if obj.clientPtr != nil {
 		panic(fmt.Sprintf("Attempt to override uuid for %s", obj.uuid))
@@ -96,38 +98,51 @@ func (obj *ObjectBase) SetUuid(uuid string) {
 	obj.uuid = uuid
 }
 
-// Accessor for href.
+// GetHref is the accessor for href.
 func (obj *ObjectBase) GetHref() string {
 	return obj.href
 }
 
-// Set the fully qualified domain name.
+// SetFQName sets the fully qualified domain name. This implies that the parent is
+// being specified also.
 func (obj *ObjectBase) SetFQName(parentType string, fqn []string) {
 	obj.fq_name = fqn
 	obj.name = fqn[len(fqn)-1]
 	obj.parent_type = parentType
 }
 
+// GetFQName is the accessor method for the fully qualified name.
 func (obj *ObjectBase) GetFQName() []string {
 	return obj.fq_name
 }
 
+// GetParentType is the access method for the parent type.
 func (obj *ObjectBase) GetParentType() string {
 	return obj.parent_type
 }
 
+// SetClient is used to mark an object as persistent (it has been created or read)
+// from the API and supplying it with the methods required to perform an update.
 func (obj *ObjectBase) SetClient(c objectInterface) {
 	obj.clientPtr = c
 }
 
+// IsTransient returns true if the object has been allocated locally but not yet
+// created in the Contrail API. Objects read from the API server via Find or ListDetail APIs
+// are not considered to be transient and can be updated or deleted.
 func (obj *ObjectBase) IsTransient() bool {
 	return obj.clientPtr == nil
 }
 
+// GetField is used to retrieve references. When an object is first read, children, forward
+// and backward references are not fetched since these lists can be very large. This method
+// explicitly retrieves a reference field. It is used implicitly when reading and/or modifying
+// reference fields via the generated types library.
 func (obj *ObjectBase) GetField(ptr IObject, field string) error {
 	return obj.clientPtr.GetField(ptr, field)
 }
 
+// UnmarshalCommon is used to unmarshal the JSON data on ObjectBase.
 func (obj *ObjectBase) UnmarshalCommon(m map[string]json.RawMessage) error {
 	var err error
 	err = json.Unmarshal(m["fq_name"], &obj.fq_name)
@@ -160,7 +175,7 @@ func (obj *ObjectBase) UnmarshalCommon(m map[string]json.RawMessage) error {
 	return nil
 }
 
-// Encode fq_name and uuid.
+// MarshalId encodes fq_name and uuid.
 func (obj *ObjectBase) MarshalId(m map[string]*json.RawMessage) error {
 	{
 		var value json.RawMessage
@@ -181,7 +196,7 @@ func (obj *ObjectBase) MarshalId(m map[string]*json.RawMessage) error {
 	return nil
 }
 
-// Encode the information stored in the ObjectBase struct.
+// MarshalCommon encodes the information stored in the ObjectBase struct.
 func (obj *ObjectBase) MarshalCommon(m map[string]*json.RawMessage) error {
 	err := obj.MarshalId(m)
 	if err != nil {
@@ -207,15 +222,15 @@ func (obj *ObjectBase) MarshalCommon(m map[string]*json.RawMessage) error {
 	return nil
 }
 
-type referenceUuidSorter []Reference
+type referenceUUIDSorter []Reference
 
-func (s referenceUuidSorter) Len() int {
+func (s referenceUUIDSorter) Len() int {
 	return len(s)
 }
-func (s referenceUuidSorter) Swap(i, j int) {
+func (s referenceUUIDSorter) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
-func (s referenceUuidSorter) Less(i, j int) bool {
+func (s referenceUUIDSorter) Less(i, j int) bool {
 	lhs, rhs := s[i], s[j]
 	return lhs.Uuid < rhs.Uuid
 }
@@ -256,14 +271,14 @@ func attributeEqual(lhs, rhs LinkAttribute) bool {
 	return reflect.DeepEqual(a1.Interface(), a2.Interface())
 }
 
-// Helper function that compares two reference lists and generates the
+// UpdateReference is a helper function that compares two reference lists and generates the
 // appropriate list of changes to be resented as POST requests to the
 // ref-update URL on the API server.
 func (obj *ObjectBase) UpdateReference(
 	ptr IObject, field string, current, prev ReferenceList) error {
 
-	sort.Sort(referenceUuidSorter(current))
-	sort.Sort(referenceUuidSorter(prev))
+	sort.Sort(referenceUUIDSorter(current))
+	sort.Sort(referenceUUIDSorter(prev))
 
 	var adds ReferenceList
 	var deletes ReferenceList
