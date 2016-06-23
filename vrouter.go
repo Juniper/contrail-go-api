@@ -3,7 +3,7 @@ package contrail
 import (
     "fmt"
     "git.apache.org/thrift.git/lib/go/thrift"
-    "./gen-go/instance_service"
+    "github.com/michaelhenkel/contrail-go-api/gen-go/instance_service"
     "encoding/hex"
     "strings"
     "strconv"
