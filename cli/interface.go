@@ -15,7 +15,7 @@ import (
 	"text/tabwriter"
 	"text/template"
 
-	"github.com/Juniper/contrail-go-api"
+	"github.com/michaelhenkel/contrail-go-api"
 	"github.com/pborman/uuid"
 )
 
