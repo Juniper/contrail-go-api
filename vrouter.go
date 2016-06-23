@@ -43,7 +43,7 @@ func StringToTuuid(Uuid string) (instance_service.Tuuid) {
 
 }
 
-func vrouterDelPort(vmiUuid string) {
+func VrouterDelPort(vmiUuid string) {
         err, client := rpc_client_instance()
 	if err != nil {
 		fmt.Println("error: ", err)
@@ -52,7 +52,7 @@ func vrouterDelPort(vmiUuid string) {
 	client.DeletePort(vmiUuidT)
 }
 
-func vrouterAddPort(vmiUuid string, vmUuid string, hostVethName string, mac string, vnName string, projectUuid string, portTypeString string) {
+func VrouterAddPort(vmiUuid string, vmUuid string, hostVethName string, mac string, vnName string, projectUuid string, portTypeString string) {
         err, client := rpc_client_instance()
 	if err != nil {
 		fmt.Println("error: ", err)
