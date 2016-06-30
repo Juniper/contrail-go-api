@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/michaelhenkel/contrail-go-api"
+	"github.com/Juniper/contrail-go-api"
 )
 
 // getReferenceList retrieves the list of UUIDs this object has a forward reference to

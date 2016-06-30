@@ -8,7 +8,7 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/michaelhenkel/contrail-go-api/types"
+	"github.com/Juniper/contrail-go-api/types"
 )
 
 func TestReference(t *testing.T) {

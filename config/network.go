@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/michaelhenkel/contrail-go-api"
-	"github.com/michaelhenkel/contrail-go-api/types"
+	"github.com/Juniper/contrail-go-api"
+	"github.com/Juniper/contrail-go-api/types"
 )
 
 type NetworkInfo struct {
