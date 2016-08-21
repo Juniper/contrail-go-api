@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 )
 
 type ExecFunc func(client *contrail.Client, flagSet *flag.FlagSet)
@@ -95,8 +96,15 @@ func setupAuthKeystone(client *contrail.Client) {
 func usage() {
 	flag.PrintDefaults()
 	fmt.Fprintf(os.Stderr, "  Commands:\n")
-	for name, _ := range commandMap {
-		fmt.Fprintf(os.Stderr, "    %s\n", name)
+	commandMapArray := make([]string, len(commandMap))
+	i := 0
+	for j, _ := range commandMap {
+		commandMapArray[i] = j
+		i++
+	}
+	sort.Strings(commandMapArray)
+	for s, _ := range commandMapArray {
+		fmt.Fprintf(os.Stderr, "    %s\n", commandMapArray[s])
 	}
 }
 
