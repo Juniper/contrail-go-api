@@ -1,12 +1,12 @@
 package config
 
 import (
-	"github.com/Juniper/contrail-go-api"
+    "github.com/Juniper/contrail-go-api"
     "github.com/Juniper/contrail-go-api/types"
 )
 
 type MachineInfo struct {
-	DisplayName         string
+    DisplayName         string
     Uuid                string
     InstanceIp          string
     FloatingIp          string
@@ -62,14 +62,14 @@ func buildMachineInfo(client contrail.ApiClient, machine *types.VirtualMachineIn
         machineFloatingIp,
     }
 
-	return info, nil
+    return info, nil
 }
 
 func MachineShow(client contrail.ApiClient, uuid string, detail bool) (*MachineInfo, error) {
-	machine, err := client.FindByUuid("virtual-machine", uuid)
-	if err != nil {
-		return nil, err
-	}
+    machine, err := client.FindByUuid("virtual-machine", uuid)
+    if err != nil {
+        return nil, err
+    }
 
     virtualMachineInterfaceRefs, err := machine.(*types.VirtualMachine).GetVirtualMachineInterfaceBackRefs()
     if err != nil {
@@ -81,7 +81,7 @@ func MachineShow(client contrail.ApiClient, uuid string, detail bool) (*MachineI
         return nil, err
     }
 
-	return buildMachineInfo(client, virtualMachineInterface.(*types.VirtualMachineInterface), detail)   
+    return buildMachineInfo(client, virtualMachineInterface.(*types.VirtualMachineInterface), detail)   
 }
 
 func MachineList(client contrail.ApiClient, project_id string, detail bool) ([]*MachineInfo, error) {

@@ -1,14 +1,14 @@
 package main
 
 import (
-	"flag"
-	"fmt"
-	"os"
-	"text/tabwriter"
+    "flag"
+    "fmt"
+    "os"
+    "text/tabwriter"
     "text/template"
 
-	"github.com/Juniper/contrail-go-api"
-	"github.com/Juniper/contrail-go-api/config"
+    "github.com/Juniper/contrail-go-api"
+    "github.com/Juniper/contrail-go-api/config"
 )
 
 type machineCommonOptions struct {
@@ -17,11 +17,11 @@ type machineCommonOptions struct {
 }
 
 type machineListOptions struct {
-	detail bool
+    detail bool
 }
 
 type machineShowOptions struct {
-	detail bool
+    detail bool
 }
 
 var (
@@ -38,7 +38,7 @@ const machineShowFormat = `  Machine: {{.DisplayName}}
 
 func machineList(client *contrail.Client, flagSet *flag.FlagSet) {
     var parent_id string
-	var writer *tabwriter.Writer
+    var writer *tabwriter.Writer
     var err error
 
     parent_id, err = config.GetProjectId(client, machineCommonOpts.project, machineCommonOpts.project_id)
@@ -47,19 +47,19 @@ func machineList(client *contrail.Client, flagSet *flag.FlagSet) {
         os.Exit(1)
     }
 
-	machineList, err := config.MachineList(client, parent_id, machineListOpts.detail)
-	if err != nil {
-		fmt.Fprint(os.Stderr, err)
-		os.Exit(1)
-	}
+    machineList, err := config.MachineList(client, parent_id, machineListOpts.detail)
+    if err != nil {
+        fmt.Fprint(os.Stderr, err)
+        os.Exit(1)
+    }
 
-	writer = new(tabwriter.Writer)
-	writer.Init(os.Stdout, 0, 0, 1, ' ', 0)
-	fmt.Fprintf(writer, "Uuid\tInstance Ip\tFloating Ip\n")
-	for _, n := range machineList {
-		fmt.Fprintf(writer, "%s\t%s\t%s\n", n.Uuid, n.InstanceIp, n.FloatingIp)
-	}
-	writer.Flush()
+    writer = new(tabwriter.Writer)
+    writer.Init(os.Stdout, 0, 0, 1, ' ', 0)
+    fmt.Fprintf(writer, "Uuid\tInstance Ip\tFloating Ip\n")
+    for _, n := range machineList {
+        fmt.Fprintf(writer, "%s\t%s\t%s\n", n.Uuid, n.InstanceIp, n.FloatingIp)
+    }
+    writer.Flush()
 }
 
 func machineShow(client *contrail.Client, flagSet *flag.FlagSet) {
@@ -102,12 +102,12 @@ func machineInitCommonFlags(flagSet *flag.FlagSet) {
 }
 
 func init() {
-	listFlags := flag.NewFlagSet("virtual-machine-list", flag.ExitOnError)
-	machineInitCommonFlags(listFlags)
-	RegisterCliCommand("virtual-machine-list", listFlags, machineList)	
+    listFlags := flag.NewFlagSet("virtual-machine-list", flag.ExitOnError)
+    machineInitCommonFlags(listFlags)
+    RegisterCliCommand("virtual-machine-list", listFlags, machineList)	
 
-	showFlags := flag.NewFlagSet("virtual-machine-show", flag.ExitOnError)
-	machineInitCommonFlags(showFlags)
-	RegisterCliCommand("virtual-machine-show", showFlags, machineShow)
+    showFlags := flag.NewFlagSet("virtual-machine-show", flag.ExitOnError)
+    machineInitCommonFlags(showFlags)
+    RegisterCliCommand("virtual-machine-show", showFlags, machineShow)
 }
 
