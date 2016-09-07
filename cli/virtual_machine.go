@@ -9,7 +9,6 @@ import (
 
 	"github.com/Juniper/contrail-go-api"
 	"github.com/Juniper/contrail-go-api/config"
-	//"github.com/Juniper/contrail-go-api/types"
 )
 
 type machineCommonOptions struct {
@@ -64,13 +63,19 @@ func machineList(client *contrail.Client, flagSet *flag.FlagSet) {
 }
 
 func machineShow(client *contrail.Client, flagSet *flag.FlagSet) {
-    //TODO
     var tmpl string
     var uuid string
-     
+    
+    if flagSet.NArg() < 1 {
+        fmt.Println("Usage: virtual-machine-show <instance uuid>")
+        os.Exit(1)
+    }
+ 
     nameOrId := flagSet.Args()[0]
     if config.IsUuid(nameOrId) {
         uuid = nameOrId
+    } else {
+        fmt.Println("Valid instance Uuid not provided") 
     }
 
     info, err := config.MachineShow(client, uuid, machineShowOpts.detail)

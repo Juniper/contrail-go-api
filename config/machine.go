@@ -1,7 +1,6 @@
 package config
 
 import (
-    //"fmt"
 	"github.com/Juniper/contrail-go-api"
     "github.com/Juniper/contrail-go-api/types"
 )
@@ -82,9 +81,7 @@ func MachineShow(client contrail.ApiClient, uuid string, detail bool) (*MachineI
         return nil, err
     }
 
-	return buildMachineInfo(client, virtualMachineInterface.(*types.VirtualMachineInterface), detail) 
-
-    
+	return buildMachineInfo(client, virtualMachineInterface.(*types.VirtualMachineInterface), detail)   
 }
 
 func MachineList(client contrail.ApiClient, project_id string, detail bool) ([]*MachineInfo, error) {
@@ -103,6 +100,7 @@ func MachineList(client contrail.ApiClient, project_id string, detail bool) ([]*
         }
         machineList = append(machineList, info)
     }
+
     return machineList, nil 
 }
 
