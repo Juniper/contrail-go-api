@@ -124,16 +124,17 @@ func makeSubnet(prefix string) (*types.IpamSubnetType, error) {
 func networkAddSubnet(
 	client contrail.ApiClient,
 	project *types.Project, network *types.VirtualNetwork,
-	subnet *types.IpamSubnetType) error {
+	subnet *types.IpamSubnetType,
+	ipam *types.NetworkIpam) error {
 
-	refList, err := project.GetNetworkIpams()
+	/*refList, err := project.GetNetworkIpams()
 	if err != nil {
 		return err
 	}
 
-	var ipam *types.NetworkIpam
-	if len(refList) > 0 {
-		obj, err := client.FindByUuid("network-ipam", refList[0].Uuid)
+	var ipam *types.NetworkIpam*/
+	if ipam != nil {
+		obj, err := client.FindByUuid("network-ipam", ipam.GetUuid())
 		if err != nil {
 			return err
 		}
@@ -166,8 +167,41 @@ func networkAddSubnet(
 	return nil
 }
 
+
 func CreateNetworkWithSubnet(
-	client contrail.ApiClient, project_id, name, prefix string) (
+client contrail.ApiClient, project_id, name, prefix string) (
+string, error) {
+
+	obj, err := client.FindByUuid("project", project_id)
+	if err != nil {
+		return "", err
+	}
+
+	project := obj.(*types.Project)
+
+	net := new(types.VirtualNetwork)
+	net.SetParent(project)
+	net.SetName(name)
+
+	subnet, err := makeSubnet(prefix)
+	if err != nil {
+		return "", err
+	}
+	err = networkAddSubnet(client, project, net, subnet, nil)
+	if err != nil {
+		return "", err
+	}
+
+	err = client.Create(net)
+	if err != nil {
+		return "", err
+	}
+	return net.GetUuid(), nil
+}
+
+
+func CreateNetworkWithIpam(
+	client contrail.ApiClient, project_id, name, prefix string, ipam *types.NetworkIpam) (
 	string, error) {
 
 	obj, err := client.FindByUuid("project", project_id)
@@ -185,7 +219,7 @@ func CreateNetworkWithSubnet(
 	if err != nil {
 		return "", err
 	}
-	err = networkAddSubnet(client, project, net, subnet)
+	err = networkAddSubnet(client, project, net, subnet, ipam)
 	if err != nil {
 		return "", err
 	}
@@ -226,7 +260,7 @@ func AddSubnet(
 	if err != nil {
 		return false, err
 	}
-	err = networkAddSubnet(client, project, network, subnet)
+	err = networkAddSubnet(client, project, network, subnet, nil)
 	if err != nil {
 		return false, err
 	}
