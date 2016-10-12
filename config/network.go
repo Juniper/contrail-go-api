@@ -127,12 +127,6 @@ func networkAddSubnet(
 	subnet *types.IpamSubnetType,
 	ipam *types.NetworkIpam) error {
 
-	/*refList, err := project.GetNetworkIpams()
-	if err != nil {
-		return err
-	}
-
-	var ipam *types.NetworkIpam*/
 	if ipam != nil {
 		obj, err := client.FindByUuid("network-ipam", ipam.GetUuid())
 		if err != nil {
