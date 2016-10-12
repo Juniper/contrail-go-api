@@ -195,15 +195,8 @@ string, error) {
 
 
 func CreateNetworkWithIpam(
-	client contrail.ApiClient, project_id, name, prefix string, ipam *types.NetworkIpam) (
+	client contrail.ApiClient, project *types.Project, name, prefix string, ipam *types.NetworkIpam) (
 	string, error) {
-
-	obj, err := client.FindByUuid("project", project_id)
-	if err != nil {
-		return "", err
-	}
-
-	project := obj.(*types.Project)
 
 	net := new(types.VirtualNetwork)
 	net.SetParent(project)
