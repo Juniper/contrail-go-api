@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"time"
 	"io/ioutil"
 	"net/http"
 )
@@ -22,6 +23,10 @@ type KeystoneClient struct {
 	osAdminToken string
 
 	current *KeystoneToken
+}
+
+type KeepaliveKeystoneClient struct {
+	KeystoneClient
 }
 
 // KeystoneToken represents an auth token issued by OpenStack keystone service.
@@ -47,6 +52,19 @@ func NewKeystoneClient(auth_url, tenant_name, username, password, token string) 
 		password,
 		token,
 		nil,
+	}
+}
+
+func NewKeepaliveKeystoneClient(auth_url, tenant_name, username, password, token string) *KeepaliveKeystoneClient {
+	return &KeepaliveKeystoneClient {
+		KeystoneClient{
+			auth_url,
+			tenant_name,
+			username,
+			password,
+			token,
+			nil,
+		},
 	}
 }
 
@@ -133,6 +151,39 @@ func (kClient *KeystoneClient) Authenticate() error {
 	kClient.current = new(KeystoneToken)
 	*kClient.current = response.Access.Token
 	return nil
+}
+
+func (kClient *KeepaliveKeystoneClient) needsRefreshing() (bool, error) {
+	if kClient.current == nil {
+		return true, nil
+	}
+
+	issuedAtTime, err := time.Parse(time.RFC3339, kClient.current.Issued_At)
+	if err != nil {
+		return false, err
+	}
+
+	expires, err := time.Parse(time.RFC3339, kClient.current.Expires)
+	if err != nil {
+		return false, err
+	}
+
+	refreshTime := issuedAtTime.UTC().Add(expires.UTC().Sub(issuedAtTime.UTC()) / 2)
+
+	return time.Now().UTC().After(refreshTime.UTC()), nil
+}
+
+func (kClient *KeepaliveKeystoneClient) AddAuthentication(req *http.Request) error {
+	needsRefreshing, err := kClient.needsRefreshing()
+	if err != nil {
+		return err
+	}
+
+	if needsRefreshing {
+		kClient.current = nil
+	}
+
+	return kClient.KeystoneClient.AddAuthentication(req)
 }
 
 // AddAuthentication adds the authentication data to the HTTP header.
