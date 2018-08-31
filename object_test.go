@@ -224,7 +224,7 @@ func TestUpdateAttrStruct(t *testing.T) {
 	}
 	msg := client.messages[0]
 	if msg.RefUuid != "2" || msg.Operation != "ADD" {
-		t.Error("op: %s, id=%s", msg.Operation, msg.RefUuid)
+		t.Errorf("op: %s, id=%s", msg.Operation, msg.RefUuid)
 	}
 
 }
