@@ -24,6 +24,7 @@ install:
   - tar -zxvf contrail-go-api-generated-types-r2.20.tar.gz --strip-components=3
   - go get github.com/stretchr/testify
   - go get github.com/pborman/uuid
+  - go get github.com/sirupsen/logrus
 
 script:
   - go test -v ./...
