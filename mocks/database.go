@@ -304,7 +304,7 @@ func (db *InMemDatabase) GetByUUID(id uuid.UUID) (contrail.IObject, error) {
 	uid := makeUID(id)
 	obj, ok := db.objByIDMap[uid]
 	if !ok {
-		return nil, fmt.Errorf("%s: Not found", id.String())
+		return nil, fmt.Errorf("404 Not Found: %s", id.String())
 	}
 	return obj, nil
 }
@@ -313,11 +313,11 @@ func (db *InMemDatabase) GetByUUID(id uuid.UUID) (contrail.IObject, error) {
 func (db *InMemDatabase) GetByName(typename string, fqn string) (contrail.IObject, error) {
 	typeMap, ok := db.typeDB[typename]
 	if !ok {
-		return nil, fmt.Errorf("%s %s: Not found", typename, fqn)
+		return nil, fmt.Errorf("404 Not Found: %s %s", typename, fqn)
 	}
 	obj, ok := typeMap[fqn]
 	if !ok {
-		return nil, fmt.Errorf("%s %s: Not Found", typename, fqn)
+		return nil, fmt.Errorf("404 Not Found: %s %s", typename, fqn)
 	}
 	return obj, nil
 }

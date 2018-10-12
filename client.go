@@ -15,6 +15,13 @@ import (
 	"reflect"
 	"strings"
 	"unicode"
+
+	"github.com/Juniper/contrail-go-api/logging"
+	log "github.com/sirupsen/logrus"
+)
+
+const (
+	loggerPackageTag = "CONTRAIL"
 )
 
 // TypeMap is used to inject the auto-generated types library.
@@ -122,6 +129,13 @@ func typename(ptr IObject) string {
 	return string(buf)
 }
 
+func (c *Client) sendRequest(req *http.Request) (*http.Response, error) {
+	log.Debugln(logging.HTTPMessage(loggerPackageTag, req))
+	res, err := c.httpClient.Do(req)
+	log.Debugln(logging.HTTPMessage(loggerPackageTag, res))
+	return res, err
+}
+
 func (c *Client) httpPost(url string, bodyType string, body io.Reader) (
 	*http.Response, error) {
 	req, err := http.NewRequest("POST", url, body)
@@ -133,12 +147,14 @@ func (c *Client) httpPost(url string, bodyType string, body io.Reader) (
 	if err != nil {
 		return nil, err
 	}
-	return c.httpClient.Do(req)
+
+	return c.sendRequest(req)
 }
 
 func (c *Client) httpPut(url string, bodyType string, body io.Reader) (
 	*http.Response, error) {
 	req, err := http.NewRequest("PUT", url, body)
+
 	if err != nil {
 		return nil, err
 	}
@@ -147,11 +163,13 @@ func (c *Client) httpPut(url string, bodyType string, body io.Reader) (
 	if err != nil {
 		return nil, err
 	}
-	return c.httpClient.Do(req)
+
+	return c.sendRequest(req)
 }
 
 func (c *Client) httpGet(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
+
 	if err != nil {
 		return nil, err
 	}
@@ -159,11 +177,13 @@ func (c *Client) httpGet(url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.httpClient.Do(req)
+
+	return c.sendRequest(req)
 }
 
 func (c *Client) httpDelete(url string) (*http.Response, error) {
 	req, err := http.NewRequest("DELETE", url, nil)
+
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +191,8 @@ func (c *Client) httpDelete(url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.httpClient.Do(req)
+
+	return c.sendRequest(req)
 }
 
 // Create an object in the OpenContrail API server.

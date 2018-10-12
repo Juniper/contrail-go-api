@@ -13,7 +13,8 @@ import (
 
 	"github.com/Juniper/contrail-go-api"
 	"github.com/Juniper/contrail-go-api/types"
-	"github.com/golang/glog"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type NetworkInfo struct {
@@ -162,10 +163,9 @@ func networkAddSubnet(
 	return nil
 }
 
-
 func CreateNetworkWithSubnet(
-client contrail.ApiClient, project_id, name, prefix string) (
-string, error) {
+	client contrail.ApiClient, project_id, name, prefix string) (
+	string, error) {
 
 	obj, err := client.FindByUuid("project", project_id)
 	if err != nil {
@@ -194,9 +194,8 @@ string, error) {
 	return net.GetUuid(), nil
 }
 
-
 func CreateNetworkWithIpam(
-	client contrail.ApiClient, project *types.Project, name string, prefix[] string, ipams[] *types.NetworkIpam) (
+	client contrail.ApiClient, project *types.Project, name string, prefix []string, ipams []*types.NetworkIpam) (
 	string, error) {
 
 	net := new(types.VirtualNetwork)
@@ -206,12 +205,12 @@ func CreateNetworkWithIpam(
 	for i, ipam := range ipams {
 		subnet, err := makeSubnet(prefix[i])
 		if err != nil {
-			glog.Errorf("Cannot makeSubnet")
+			log.Debugln("Cannot makeSubnet")
 			continue
 		}
 		err = networkAddSubnet(client, project, net, subnet, ipam)
 		if err != nil {
-			glog.Errorf("Cannot add Ipam")
+			log.Debugln("Cannot add Ipam")
 			continue
 		}
 	}
