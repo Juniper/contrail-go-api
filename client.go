@@ -6,6 +6,8 @@ package contrail
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -49,6 +51,53 @@ func (*NopAuthenticator) AddAuthentication(*http.Request) error {
 	return nil
 }
 
+// The Encryptor interface is used to add an encryption to the REST call
+type Encryptor interface {
+	AddEncryption(caFile string, keyFile string, certFile string, insecure bool) error
+}
+
+// NopEncryptor doesn't add encryption
+type NopEncryptor struct {
+}
+
+// AddEncryption implements the Encryptor interface for NopEncryptor.
+func (*NopEncryptor) AddEncryption(caFile string, keyFile string, certFile string, insecure bool) error {
+	return nil
+}
+
+// AddEncryption implements the Encryptor interface for Client.
+func (c *Client) AddEncryption(caFile string, keyFile string, certFile string, insecure bool) error {
+	c.scheme = "https"
+	tlsConfig := &tls.Config{}
+	if insecure {
+		tlsConfig.InsecureSkipVerify = true
+	} else if caFile != "" {
+		caCert, err := ioutil.ReadFile(caFile)
+		if err != nil {
+			return nil
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		tlsConfig.RootCAs = caCertPool
+		if certFile != "" && keyFile != "" {
+			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				return nil
+			}
+			tlsConfig.Certificates = []tls.Certificate{cert}
+		} else {
+			tlsConfig.InsecureSkipVerify = true
+		}
+
+	}
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+	c.httpClient.Transport = transport
+
+	return nil
+}
+
 // ApiClient interface
 type ApiClient interface {
 	Create(ptr IObject) error
@@ -68,9 +117,17 @@ type ApiClient interface {
 // A Client of the OpenContrail API server.
 type Client struct {
 	server     string
+	scheme     string
 	port       int
 	httpClient *http.Client
 	auth       Authenticator
+	encrypt    Encryptor
+}
+
+type TlsConfig struct {
+	ca   string
+	key  string
+	cert string
 }
 
 // ListResult is the return type of the {List, ListByParent} API calls.
@@ -90,8 +147,10 @@ func NewClient(server string, port int) *Client {
 	client := new(Client)
 	client.server = server
 	client.port = port
+	client.scheme = "http"
 	client.httpClient = &http.Client{}
 	client.auth = new(NopAuthenticator)
+	client.encrypt = new(NopEncryptor)
 	return client
 }
 
@@ -104,6 +163,11 @@ func (c *Client) GetServer() string {
 // to be used by Contrail API requests.
 func (c *Client) SetAuthenticator(auth Authenticator) {
 	c.auth = auth
+}
+
+// SetEncryptor enables the user to encrypt the API traffic
+func (c *Client) SetEncryptor(encrypt Encryptor) {
+	c.encrypt = encrypt
 }
 
 func typename(ptr IObject) string {
@@ -179,7 +243,7 @@ func (c *Client) httpDelete(url string) (*http.Response, error) {
 // The object must have been initialized with a name.
 func (c *Client) Create(ptr IObject) error {
 	xtype := typename(ptr)
-	url := fmt.Sprintf("http://%s:%d/%ss", c.server, c.port, xtype)
+	url := fmt.Sprintf("%s://%s:%d/%ss", c.scheme, c.server, c.port, xtype)
 
 	objJson, err := json.Marshal(ptr)
 	if err != nil {
@@ -319,8 +383,7 @@ func (c *Client) Update(ptr IObject) error {
 
 // DeleteByUuid deletes the specified object.
 func (c *Client) DeleteByUuid(typename, uuid string) error {
-	url := fmt.Sprintf("http://%s:%d/%s/%s",
-		c.server, c.port, typename, uuid)
+	url := fmt.Sprintf("%s://%s:%d/%s/%s", c.scheme, c.server, c.port, typename, uuid)
 	resp, err := c.httpDelete(url)
 	if err != nil {
 		return err
@@ -359,14 +422,14 @@ func (c *Client) Delete(ptr IObject) error {
 
 // FindByUuid reads an object identified by UUID.
 func (c *Client) FindByUuid(typename string, uuid string) (IObject, error) {
-	url := fmt.Sprintf("http://%s:%d/%s/%s", c.server, c.port,
+	url := fmt.Sprintf("%s://%s:%d/%s/%s", c.scheme, c.server, c.port,
 		typename, uuid)
 	return c.readObject(typename, url)
 }
 
 // UuidByName returns the UUID of an object as identified by its fully qualified name.
 func (c *Client) UuidByName(typename string, fqn string) (string, error) {
-	url := fmt.Sprintf("http://%s:%d/fqname-to-id", c.server, c.port)
+	url := fmt.Sprintf("%s://%s:%d/fqname-to-id", c.scheme, c.server, c.port)
 	request := struct {
 		Typename string   `json:"type"`
 		Fq_name  []string `json:"fq_name"`
@@ -415,7 +478,7 @@ func (c *Client) FQNameByUuid(uuid string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	url := fmt.Sprintf("http://%s:%d/id-to-fqname", c.server, c.port)
+	url := fmt.Sprintf("%s://%s:%d/id-to-fqname", c.scheme, c.server, c.port)
 	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return nil, err
@@ -446,7 +509,7 @@ func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
 		return nil, err
 	}
 	href := fmt.Sprintf(
-		"http://%s:%d/%s/%s", c.server, c.port, typename, uuid)
+		"%s://%s:%d/%s/%s", c.scheme, c.server, c.port, typename, uuid)
 	return c.readObject(typename, href)
 }
 
@@ -460,7 +523,7 @@ func (c *Client) ListByParent(
 		values.Add("parent_id", parentID)
 	}
 
-	url := fmt.Sprintf("http://%s:%d/%ss", c.server, c.port, typename)
+	url := fmt.Sprintf("%s://%s:%d/%ss", c.scheme, c.server, c.port, typename)
 	if len(values) > 0 {
 		url += fmt.Sprintf("?%s", values.Encode())
 	}
@@ -514,8 +577,7 @@ func (c *Client) ListDetailByParent(
 	}
 	values.Add("detail", "true")
 
-	url := fmt.Sprintf("http://%s:%d/%ss?%s",
-		c.server, c.port, typename, values.Encode())
+	url := fmt.Sprintf("%s://%s:%d/%ss?%s", c.scheme, c.server, c.port, typename, values.Encode())
 	resp, err := c.httpGet(url)
 	if err != nil {
 		return nil, err
@@ -618,7 +680,7 @@ func (c *Client) UpdateReference(msg *ReferenceUpdateMsg) error {
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("http://%s:%d/ref-update", c.server, c.port)
+	url := fmt.Sprintf("%s://%s:%d/ref-update", c.scheme, c.server, c.port)
 	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return err
