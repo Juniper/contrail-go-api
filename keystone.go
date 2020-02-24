@@ -16,6 +16,12 @@ import (
 	"time"
 )
 
+const (
+	tokenMethod     = "token"
+	passwordMethod  = "password"
+	defaultDomainID = "default"
+)
+
 // KeystoneClient is a client of the OpenStack Keystone service that adds authentication
 // tokens to the Contrail API requests.
 type KeystoneClient struct {
@@ -38,13 +44,23 @@ type KeepaliveKeystoneClient struct {
 // KeystoneToken represents an auth token issued by OpenStack keystone service.
 // The field names are defined by the Keystone API schema.
 type KeystoneToken struct {
-	Id      string
-	Expires string
-	Tenant  struct {
-		Id          string
-		Name        string
-		Description string
-		Enabled     bool
+	Id         string
+	Expires_At string
+	Project    struct {
+		Id     string
+		Name   string
+		Domain struct {
+			Id   string
+			Name string
+		}
+	}
+	User struct {
+		Id     string
+		Name   string
+		Domain struct {
+			Id   string
+			Name string
+		}
 	}
 	Issued_At string
 }
@@ -82,31 +98,43 @@ func (kClient *KeystoneClient) Authenticate() error {
 	// identity:CredentialType
 	type AuthTokenRequest struct {
 		Auth struct {
-			Token struct {
-				Id string `json:"id"`
-			} `json:"token"`
+			Identity struct {
+				Methods []string `json:"methods"`
+				Token   struct {
+					Id string `json:"id"`
+				} `json:"token"`
+			} `json:"identity"`
 		} `json:"auth"`
 	}
 	type AuthCredentialsRequest struct {
 		Auth struct {
-			TenantName          string `json:"tenantName"`
-			PasswordCredentials struct {
-				Username string `json:"username"`
-				Password string `json:"password"`
-			} `json:"passwordCredentials"`
+			Identity struct {
+				Methods  []string `json:"methods"`
+				Password struct {
+					User struct {
+						Name     string `json:"name"`
+						Password string `json:"password"`
+						Domain   struct {
+							Id string `json:"id"`
+						} `json:"domain"`
+					} `json:"user"`
+				} `json:"password"`
+			} `json:"identity"`
+			Scope struct {
+				Project struct {
+					Name   string `json:"name"`
+					Domain struct {
+						Id string `json:"id"`
+					} `json:"domain"`
+				} `json:"project"`
+			} `json:"scope"`
 		} `json:"auth"`
 	}
 	// identity-api/v2.0/src/xsd/token.xsd
 	// <element name="access" type="identity:AuthenticateResponse"/>
 	type TokenResponse struct {
-		Access struct {
-			Token KeystoneToken
-			User  struct {
-				Id       string
-				Username string
-			}
-			// ServiceCatalog
-		}
+		Token KeystoneToken
+		// ServiceCatalog
 	}
 	url := kClient.osAuthURL
 	if url[len(url)-1] != '/' {
@@ -118,15 +146,17 @@ func (kClient *KeystoneClient) Authenticate() error {
 	var err error
 	if len(kClient.osAdminToken) > 0 {
 		request := AuthTokenRequest{}
-		request.Auth.Token.Id = kClient.osAdminToken
+		request.Auth.Identity.Methods = []string{tokenMethod}
+		request.Auth.Identity.Token.Id = kClient.osAdminToken
 		data, err = json.Marshal(&request)
 	} else {
 		request := AuthCredentialsRequest{}
-		request.Auth.PasswordCredentials.Username =
-			kClient.osUsername
-		request.Auth.PasswordCredentials.Password =
-			kClient.osPassword
-		request.Auth.TenantName = kClient.osTenantName
+		request.Auth.Identity.Methods = []string{passwordMethod}
+		request.Auth.Identity.Password.User.Name = kClient.osUsername
+		request.Auth.Identity.Password.User.Password = kClient.osPassword
+		request.Auth.Identity.Password.User.Domain.Id = defaultDomainID
+		request.Auth.Scope.Project.Name = kClient.osTenantName
+		request.Auth.Scope.Project.Domain.Id = defaultDomainID
 		data, err = json.Marshal(&request)
 	}
 	if err != nil {
@@ -147,7 +177,7 @@ func (kClient *KeystoneClient) Authenticate() error {
 		return err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
@@ -156,9 +186,10 @@ func (kClient *KeystoneClient) Authenticate() error {
 	if err != nil {
 		return err
 	}
+	response.Token.Id = resp.Header.Get("X-Subject-Token")
 
 	kClient.current = new(KeystoneToken)
-	*kClient.current = response.Access.Token
+	*kClient.current = response.Token
 	return nil
 }
 
@@ -172,7 +203,7 @@ func (kClient *KeepaliveKeystoneClient) needsRefreshing() (bool, error) {
 		return false, err
 	}
 
-	expires, err := time.Parse(time.RFC3339, kClient.current.Expires)
+	expires, err := time.Parse(time.RFC3339, kClient.current.Expires_At)
 	if err != nil {
 		return false, err
 	}

@@ -12,10 +12,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -111,13 +114,20 @@ type ApiClient interface {
 	ListDetailByParent(typename string, parentID string, fields []string) ([]IObject, error)
 }
 
+// APIServer list
+type APIServer struct {
+	server string
+	next   *APIServer
+}
+
 // A Client of the OpenContrail API server.
 type Client struct {
-	server     string
+	servers    map[string]string
 	scheme     string
 	port       int
 	httpClient *http.Client
 	auth       Authenticator
+	nextServer string
 }
 
 type TlsConfig struct {
@@ -141,17 +151,37 @@ var (
 //
 func NewClient(server string, port int) *Client {
 	client := new(Client)
-	client.server = server
+	client.servers = map[string]string{server: server}
 	client.port = port
 	client.scheme = "http"
 	client.httpClient = &http.Client{}
 	client.auth = new(NopAuthenticator)
+	client.nextServer = server
 	return client
 }
 
-// GetServer retrieves the name or address of the Contrail API server.
+// NewClientPool initializes client with multiple API servers
+func NewClientPool(servers []string, port int) *Client {
+	client := NewClient(servers[0], port)
+	for i, server := range servers {
+		if i == len(servers)-1 {
+			client.servers[server] = servers[0]
+		} else {
+			client.servers[server] = servers[i+1]
+		}
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	client.nextServer = servers[(rand.Intn(len(servers)))]
+
+	return client
+}
+
+// GetServer retrieves the name or address of the Contrail API server(round-robin).
 func (c *Client) GetServer() string {
-	return c.server
+	server := c.nextServer
+	c.nextServer = c.servers[server]
+	return server
 }
 
 // SetAuthenticator enables the user to configure an Authenticator (e.g. Keystone)
@@ -176,6 +206,28 @@ func typename(ptr IObject) string {
 	return string(buf)
 }
 
+func (c *Client) Do(req *http.Request) (*http.Response, error) {
+	first, _, _ := net.SplitHostPort(req.URL.Host)
+	for {
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return resp, err
+		}
+		if resp.StatusCode == http.StatusBadGateway ||
+			resp.StatusCode == http.StatusServiceUnavailable ||
+			resp.StatusCode == http.StatusGatewayTimeout {
+			host, _, _ := net.SplitHostPort(req.URL.Host)
+			if c.servers[host] == first {
+				return resp, err
+			}
+			req.URL.Host = fmt.Sprintf("%s:%d", c.servers[host], c.port)
+		} else {
+			return resp, err
+		}
+	}
+
+}
+
 func (c *Client) httpPost(url string, bodyType string, body io.Reader) (
 	*http.Response, error) {
 	req, err := http.NewRequest("POST", url, body)
@@ -187,7 +239,7 @@ func (c *Client) httpPost(url string, bodyType string, body io.Reader) (
 	if err != nil {
 		return nil, err
 	}
-	return c.httpClient.Do(req)
+	return c.Do(req)
 }
 
 func (c *Client) httpPut(url string, bodyType string, body io.Reader) (
@@ -201,7 +253,7 @@ func (c *Client) httpPut(url string, bodyType string, body io.Reader) (
 	if err != nil {
 		return nil, err
 	}
-	return c.httpClient.Do(req)
+	return c.Do(req)
 }
 
 func (c *Client) httpGet(url string) (*http.Response, error) {
@@ -213,7 +265,7 @@ func (c *Client) httpGet(url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.httpClient.Do(req)
+	return c.Do(req)
 }
 
 func (c *Client) httpDelete(url string) (*http.Response, error) {
@@ -225,7 +277,7 @@ func (c *Client) httpDelete(url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.httpClient.Do(req)
+	return c.Do(req)
 }
 
 // Create an object in the OpenContrail API server.
@@ -233,7 +285,7 @@ func (c *Client) httpDelete(url string) (*http.Response, error) {
 // The object must have been initialized with a name.
 func (c *Client) Create(ptr IObject) error {
 	xtype := typename(ptr)
-	url := fmt.Sprintf("%s://%s:%d/%ss", c.scheme, c.server, c.port, xtype)
+	url := fmt.Sprintf("%s://%s:%d/%ss", c.scheme, c.GetServer(), c.port, xtype)
 
 	objJson, err := json.Marshal(ptr)
 	if err != nil {
@@ -373,7 +425,7 @@ func (c *Client) Update(ptr IObject) error {
 
 // DeleteByUuid deletes the specified object.
 func (c *Client) DeleteByUuid(typename, uuid string) error {
-	url := fmt.Sprintf("%s://%s:%d/%s/%s", c.scheme, c.server, c.port, typename, uuid)
+	url := fmt.Sprintf("%s://%s:%d/%s/%s", c.scheme, c.GetServer(), c.port, typename, uuid)
 	resp, err := c.httpDelete(url)
 	if err != nil {
 		return err
@@ -412,14 +464,14 @@ func (c *Client) Delete(ptr IObject) error {
 
 // FindByUuid reads an object identified by UUID.
 func (c *Client) FindByUuid(typename string, uuid string) (IObject, error) {
-	url := fmt.Sprintf("%s://%s:%d/%s/%s", c.scheme, c.server, c.port,
+	url := fmt.Sprintf("%s://%s:%d/%s/%s", c.scheme, c.GetServer(), c.port,
 		typename, uuid)
 	return c.readObject(typename, url)
 }
 
 // UuidByName returns the UUID of an object as identified by its fully qualified name.
 func (c *Client) UuidByName(typename string, fqn string) (string, error) {
-	url := fmt.Sprintf("%s://%s:%d/fqname-to-id", c.scheme, c.server, c.port)
+	url := fmt.Sprintf("%s://%s:%d/fqname-to-id", c.scheme, c.GetServer(), c.port)
 	request := struct {
 		Typename string   `json:"type"`
 		Fq_name  []string `json:"fq_name"`
@@ -468,7 +520,7 @@ func (c *Client) FQNameByUuid(uuid string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	url := fmt.Sprintf("%s://%s:%d/id-to-fqname", c.scheme, c.server, c.port)
+	url := fmt.Sprintf("%s://%s:%d/id-to-fqname", c.scheme, c.GetServer(), c.port)
 	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return nil, err
@@ -499,7 +551,7 @@ func (c *Client) FindByName(typename string, fqn string) (IObject, error) {
 		return nil, err
 	}
 	href := fmt.Sprintf(
-		"%s://%s:%d/%s/%s", c.scheme, c.server, c.port, typename, uuid)
+		"%s://%s:%d/%s/%s", c.scheme, c.GetServer(), c.port, typename, uuid)
 	return c.readObject(typename, href)
 }
 
@@ -513,7 +565,7 @@ func (c *Client) ListByParent(
 		values.Add("parent_id", parentID)
 	}
 
-	url := fmt.Sprintf("%s://%s:%d/%ss", c.scheme, c.server, c.port, typename)
+	url := fmt.Sprintf("%s://%s:%d/%ss", c.scheme, c.GetServer(), c.port, typename)
 	if len(values) > 0 {
 		url += fmt.Sprintf("?%s", values.Encode())
 	}
@@ -567,7 +619,7 @@ func (c *Client) ListDetailByParent(
 	}
 	values.Add("detail", "true")
 
-	url := fmt.Sprintf("%s://%s:%d/%ss?%s", c.scheme, c.server, c.port, typename, values.Encode())
+	url := fmt.Sprintf("%s://%s:%d/%ss?%s", c.scheme, c.GetServer(), c.port, typename, values.Encode())
 	resp, err := c.httpGet(url)
 	if err != nil {
 		return nil, err
@@ -670,7 +722,7 @@ func (c *Client) UpdateReference(msg *ReferenceUpdateMsg) error {
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("%s://%s:%d/ref-update", c.scheme, c.server, c.port)
+	url := fmt.Sprintf("%s://%s:%d/ref-update", c.scheme, c.GetServer(), c.port)
 	resp, err := c.httpPost(url, "application/json", bytes.NewReader(data))
 	if err != nil {
 		return err
