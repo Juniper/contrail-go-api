@@ -1,0 +1,123 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "cd3617c2_4d7877b2",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 154,
+      "author": {
+        "id": 254
+      },
+      "writtenOn": "2020-02-25T16:54:18Z",
+      "side": 1,
+      "message": "why not using a slice instead of a map? A map where key\u003dvalue is a bit strange",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "9beff25d_00aba304",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 159,
+      "author": {
+        "id": 254
+      },
+      "writtenOn": "2020-02-25T16:54:18Z",
+      "side": 1,
+      "message": "this could be an *int to the index of the next server in the slice",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "fbcaadfb_cc7a363f",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 164,
+      "author": {
+        "id": 254
+      },
+      "writtenOn": "2020-02-25T16:54:18Z",
+      "side": 1,
+      "message": "shouldn\u0027t we consider that each server can have a different port? This assumes all servers running on the same port",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "f0217e65_53e990d1",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 166,
+      "author": {
+        "id": 254
+      },
+      "writtenOn": "2020-02-25T16:54:18Z",
+      "side": 1,
+      "message": "is servers is a slice and not a map client.servers can be client.servers\u003dservers instead of the for loop",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "34a15f5c_8a903fff",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 168,
+      "author": {
+        "id": 254
+      },
+      "writtenOn": "2020-02-25T16:54:18Z",
+      "side": 1,
+      "message": "why do you conditionally add the first server to the map if counter is servers-1?",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "3e4e6783_29a1ec94",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 210,
+      "author": {
+        "id": 254
+      },
+      "writtenOn": "2020-02-25T16:54:18Z",
+      "side": 1,
+      "message": "error should be checked",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "24e08550_5fd57d26",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 219,
+      "author": {
+        "id": 254
+      },
+      "writtenOn": "2020-02-25T16:54:18Z",
+      "side": 1,
+      "message": "error should be checked",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    }
+  ]
+}
