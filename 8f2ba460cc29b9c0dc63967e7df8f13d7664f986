@@ -19,6 +19,23 @@
     },
     {
       "key": {
+        "uuid": "62eb6e2c_32bcffa7",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 154,
+      "author": {
+        "id": 482
+      },
+      "writtenOn": "2020-02-27T13:13:28Z",
+      "side": 1,
+      "message": "I also suggest having just a slice of services `[]string` and int value that shows index of next server.",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
         "uuid": "9beff25d_00aba304",
         "filename": "client.go",
         "patchSetId": 1
@@ -87,6 +104,40 @@
     },
     {
       "key": {
+        "uuid": "b36c9c1f_0d9f89ab",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 180,
+      "author": {
+        "id": 482
+      },
+      "writtenOn": "2020-02-27T13:13:28Z",
+      "side": 1,
+      "message": "Does this method has to be a part of a public interface?",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "d098ff31_98b3a9e8",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 182,
+      "author": {
+        "id": 482
+      },
+      "writtenOn": "2020-02-27T13:13:28Z",
+      "side": 1,
+      "message": "If we have just an index of next server, we could use just modulo operation for calculation of next server.",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
         "uuid": "3e4e6783_29a1ec94",
         "filename": "client.go",
         "patchSetId": 1
@@ -115,6 +166,23 @@
       "writtenOn": "2020-02-25T16:54:18Z",
       "side": 1,
       "message": "error should be checked",
+      "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
+      "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "b419509d_8f54af01",
+        "filename": "client.go",
+        "patchSetId": 1
+      },
+      "lineNbr": 622,
+      "author": {
+        "id": 482
+      },
+      "writtenOn": "2020-02-27T13:13:28Z",
+      "side": 1,
+      "message": "What do you think about creating a method that will do a common part of this concatenation\n   fmt.Sprintf(\"%s://%s:%d, c.scheme, c.GetServer(), c.port) - this could be this common part",
       "revId": "8f2ba460cc29b9c0dc63967e7df8f13d7664f986",
       "serverId": "c72cd27d-1743-4a55-84a4-cd13b8400c52",
       "unresolved": true
