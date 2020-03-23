@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 	"io/ioutil"
 	"net/http"
@@ -78,7 +79,7 @@ func (kClient *KeystoneClient) Authenticate() error {
 			} `json:"token"`
 		} `json:"auth"`
 	}
-	type AuthCredentialsRequest struct {
+	type AuthCredentialsRequestv2 struct {
 		Auth struct {
 			TenantName          string `json:"tenantName"`
 			PasswordCredentials struct {
@@ -87,6 +88,25 @@ func (kClient *KeystoneClient) Authenticate() error {
 			} `json:"passwordCredentials"`
 		} `json:"auth"`
 	}
+
+	//Credential request for v3 schema
+	type AuthCredentialsRequestv3 struct {
+		Auth struct {
+			Identity struct {
+				Methods  []string `json:"methods"`
+				Password struct {
+					User struct {
+						Domain struct {
+							ID string `json:"id"`
+						} `json:"domain"`
+						Name     string `json:"name"`
+						Password string `json:"password"`
+					} `json:"user"`
+				} `json:"password"`
+			} `json:"identity"`
+		} `json:"auth"`
+	}
+
 	// identity-api/v2.0/src/xsd/token.xsd
 	// <element name="access" type="identity:AuthenticateResponse"/>
 	type TokenResponse struct {
@@ -105,6 +125,9 @@ func (kClient *KeystoneClient) Authenticate() error {
 	}
 	url += "tokens"
 
+	parts := strings.Split(url, "/")
+	schemaversion := parts[3]
+
 	var data []byte
 	var err error
 	if len(kClient.osAdminToken) > 0 {
@@ -112,14 +135,24 @@ func (kClient *KeystoneClient) Authenticate() error {
 		request.Auth.Token.Id = kClient.osAdminToken
 		data, err = json.Marshal(&request)
 	} else {
-		request := AuthCredentialsRequest{}
-		request.Auth.PasswordCredentials.Username =
-			kClient.osUsername
-		request.Auth.PasswordCredentials.Password =
-			kClient.osPassword
-		request.Auth.TenantName = kClient.osTenantName
-		data, err = json.Marshal(&request)
+		if schemaversion == "v3" {
+			request := AuthCredentialsRequestv3{}
+			request.Auth.Identity.Password.User.Name = kClient.osUsername
+			request.Auth.Identity.Password.User.Password = kClient.osPassword
+			request.Auth.Identity.Password.User.Domain.ID = "default"
+			request.Auth.Identity.Methods = append(request.Auth.Identity.Methods, "password")
+			data, err = json.Marshal(&request)
+		} else {
+			request := AuthCredentialsRequestv2{}
+			request.Auth.PasswordCredentials.Username =
+				kClient.osUsername
+			request.Auth.PasswordCredentials.Password =
+				kClient.osPassword
+			request.Auth.TenantName = kClient.osTenantName
+			data, err = json.Marshal(&request)
+		}
 	}
+
 	if err != nil {
 		return err
 	}
@@ -138,7 +171,7 @@ func (kClient *KeystoneClient) Authenticate() error {
 		return err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated{
 		return fmt.Errorf("%s: %s", resp.Status, body)
 	}
 
