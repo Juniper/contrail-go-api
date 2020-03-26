@@ -48,38 +48,8 @@ type KeystoneToken struct {
 
 type KeystoneTokenv3 struct {
 	Token struct {
-		Methods []string `json:"methods"`
-		Roles   []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"roles"`
-		System struct {
-			All bool `json:"all"`
-		} `json:"system"`
 		ExpiresAt time.Time `json:"expires_at"`
-		Catalog   []struct {
-			Endpoints []struct {
-				RegionID  string `json:"region_id"`
-				URL       string `json:"url"`
-				Region    string `json:"region"`
-				Interface string `json:"interface"`
-				ID        string `json:"id"`
-			} `json:"endpoints"`
-			Type string `json:"type"`
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"catalog"`
-		User struct {
-			PasswordExpiresAt interface{} `json:"password_expires_at"`
-			Domain            struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"domain"`
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"user"`
-		AuditIds []string  `json:"audit_ids"`
-		IssuedAt time.Time `json:"issued_at"`
+		IssuedAt  time.Time `json:"issued_at"`
 	} `json:"token"`
 }
 
@@ -275,7 +245,7 @@ func (kClient *KeystoneClient) Authenticate() error {
 }
 
 func (kClient *KeepaliveKeystoneClient) needsRefreshing() (bool, error) {
-	if len(kClient.tokenID) == 0 {
+	if kClient.tokenID == "" {
 		return true, nil
 	}
 
@@ -309,7 +279,7 @@ func (kClient *KeepaliveKeystoneClient) AddAuthentication(req *http.Request) err
 
 // AddAuthentication adds the authentication data to the HTTP header.
 func (kClient *KeystoneClient) AddAuthentication(req *http.Request) error {
-	if len(kClient.tokenID) == 0 {
+	if kClient.tokenID == "" {
 		if kClient.isv3Client {
 			if err := kClient.AuthenticateV3(); err != nil {
 				return err
