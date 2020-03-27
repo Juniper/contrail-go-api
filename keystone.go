@@ -48,8 +48,8 @@ type KeystoneToken struct {
 
 type KeystoneTokenv3 struct {
 	Token struct {
-		ExpiresAt time.Time `json:"expires_at"`
-		IssuedAt  time.Time `json:"issued_at"`
+		ExpiresAt string `json:"expires_at"`
+		IssuedAt  string `json:"issued_at"`
 	} `json:"token"`
 }
 
@@ -150,8 +150,8 @@ func (kClient *KeystoneClient) AuthenticateV3() error {
 		return err
 	}
 	kClient.tokenID = resp.Header.Get("X-Subject-Token")
-	kClient.issuedAt = response.Token.IssuedAt.String()
-	kClient.expiresAt = response.Token.ExpiresAt.String()
+	kClient.issuedAt = response.Token.IssuedAt
+	kClient.expiresAt = response.Token.ExpiresAt
 	return nil
 
 }
