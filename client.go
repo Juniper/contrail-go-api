@@ -88,7 +88,6 @@ func (c *Client) AddEncryption(caFile string, keyFile string, certFile string, i
 		} else {
 			tlsConfig.InsecureSkipVerify = true
 		}
-
 	}
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
@@ -122,6 +121,12 @@ type Client struct {
 	httpClient *http.Client
 	auth       Authenticator
 	encrypt    Encryptor
+}
+
+type TlsConfig struct {
+	ca   string
+	key  string
+	cert string
 }
 
 type TlsConfig struct {

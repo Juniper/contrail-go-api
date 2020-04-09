@@ -6,10 +6,13 @@ package contrail
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -21,13 +24,11 @@ type KeystoneClient struct {
 	osUsername   string
 	osPassword   string
 	osAdminToken string
-
-	tokenID    string
-	expiresAt  string
-	issuedAt   string
-	isv3Client bool
+	current *KeystoneToken
+	httpClient *http.Client
 }
 
+// KeepaliveKeystoneClient embeds KeystoneClient
 type KeepaliveKeystoneClient struct {
 	KeystoneClient
 }
@@ -56,30 +57,27 @@ type KeystoneTokenv3 struct {
 // NewKeystoneClient allocates and initializes a KeystoneClient
 func NewKeystoneClient(auth_url, tenant_name, username, password, token string) *KeystoneClient {
 	return &KeystoneClient{
-		auth_url,
-		tenant_name,
-		username,
-		password,
-		token,
-		"",
-		"",
-		"",
-		false,
+		osAuthURL:    auth_url,
+		osTenantName: tenant_name,
+		osUsername:   username,
+		osPassword:   password,
+		osAdminToken: token,
+		current:      nil,
+		httpClient:   &http.Client{},
 	}
 }
 
+// NewKeepaliveKeystoneClient allocates and initializes a KeepaliveKeystoneClient
 func NewKeepaliveKeystoneClient(auth_url, tenant_name, username, password, token string) *KeepaliveKeystoneClient {
 	return &KeepaliveKeystoneClient{
 		KeystoneClient{
-			auth_url,
-			tenant_name,
-			username,
-			password,
-			token,
-			"",
-			"",
-			"",
-			false,
+			osAuthURL:    auth_url,
+			osTenantName: tenant_name,
+			osUsername:   username,
+			osPassword:   password,
+			osAdminToken: token,
+			current:      nil,
+			httpClient:   &http.Client{},
 		},
 	}
 }
@@ -214,7 +212,7 @@ func (kClient *KeystoneClient) Authenticate() error {
 		return err
 	}
 
-	resp, err := http.Post(url, "application/json",
+	resp, err := kClient.httpClient.Post(url, "application/json",
 		bytes.NewReader(data))
 
 	if err != nil {
@@ -264,6 +262,7 @@ func (kClient *KeepaliveKeystoneClient) needsRefreshing() (bool, error) {
 	return time.Now().UTC().After(refreshTime.UTC()), nil
 }
 
+// AddAuthentication adds authentication token to the HTTP header of the KeepaliveKeystoneClient
 func (kClient *KeepaliveKeystoneClient) AddAuthentication(req *http.Request) error {
 	needsRefreshing, err := kClient.needsRefreshing()
 	if err != nil {
@@ -277,7 +276,7 @@ func (kClient *KeepaliveKeystoneClient) AddAuthentication(req *http.Request) err
 	return kClient.KeystoneClient.AddAuthentication(req)
 }
 
-// AddAuthentication adds the authentication data to the HTTP header.
+// AddAuthentication adds the authentication token to the HTTP header.
 func (kClient *KeystoneClient) AddAuthentication(req *http.Request) error {
 	if kClient.tokenID == "" {
 		if kClient.isv3Client {
@@ -291,5 +290,36 @@ func (kClient *KeystoneClient) AddAuthentication(req *http.Request) error {
 		}
 	}
 	req.Header.Set("X-Auth-Token", kClient.tokenID)
+	return nil
+}
+
+// AddEncryption implements the Encryptor interface for Client.
+func (kClient *KeystoneClient) AddEncryption(caFile string, keyFile string, certFile string, insecure bool) error {
+	kClient.osAuthURL = strings.Replace(kClient.osAuthURL, "http", "https", 1)
+
+	tlsConfig := &tls.Config{}
+	if insecure {
+		tlsConfig.InsecureSkipVerify = true
+	} else if caFile != "" {
+		caCert, err := ioutil.ReadFile(caFile)
+		if err != nil {
+			return nil
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		tlsConfig.RootCAs = caCertPool
+		if certFile != "" && keyFile != "" {
+			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				return nil
+			}
+			tlsConfig.Certificates = []tls.Certificate{cert}
+		}
+	}
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+	kClient.httpClient.Transport = transport
+
 	return nil
 }
