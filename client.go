@@ -129,12 +129,6 @@ type TlsConfig struct {
 	cert string
 }
 
-type TlsConfig struct {
-	ca   string
-	key  string
-	cert string
-}
-
 // ListResult is the return type of the {List, ListByParent} API calls.
 type ListResult struct {
 	Fq_name []string

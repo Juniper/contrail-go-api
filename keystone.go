@@ -24,8 +24,12 @@ type KeystoneClient struct {
 	osUsername   string
 	osPassword   string
 	osAdminToken string
-	current *KeystoneToken
-	httpClient *http.Client
+	current      *KeystoneToken
+	httpClient   *http.Client
+	tokenID      string
+	isv3Client   bool
+	issuedAt     string
+	expiresAt    string
 }
 
 // KeepaliveKeystoneClient embeds KeystoneClient
