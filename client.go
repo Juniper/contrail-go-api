@@ -85,6 +85,8 @@ func (c *Client) AddEncryption(caFile string, keyFile string, certFile string, i
 				return nil
 			}
 			tlsConfig.Certificates = []tls.Certificate{cert}
+		} else {
+			tlsConfig.InsecureSkipVerify = true
 		}
 	}
 	transport := &http.Transport{
@@ -118,6 +120,7 @@ type Client struct {
 	port       int
 	httpClient *http.Client
 	auth       Authenticator
+	encrypt    Encryptor
 }
 
 type TlsConfig struct {
@@ -146,6 +149,7 @@ func NewClient(server string, port int) *Client {
 	client.scheme = "http"
 	client.httpClient = &http.Client{}
 	client.auth = new(NopAuthenticator)
+	client.encrypt = new(NopEncryptor)
 	return client
 }
 
@@ -158,6 +162,11 @@ func (c *Client) GetServer() string {
 // to be used by Contrail API requests.
 func (c *Client) SetAuthenticator(auth Authenticator) {
 	c.auth = auth
+}
+
+// SetEncryptor enables the user to encrypt the API traffic
+func (c *Client) SetEncryptor(encrypt Encryptor) {
+	c.encrypt = encrypt
 }
 
 func typename(ptr IObject) string {
