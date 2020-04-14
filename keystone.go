@@ -129,7 +129,7 @@ func (kClient *KeystoneClient) AuthenticateV3() error {
 		return err
 	}
 
-	resp, err := http.Post(url, "application/json",
+	resp, err := kClient.httpClient.Post(url, "application/json",
 		bytes.NewReader(data))
 
 	if err != nil {
