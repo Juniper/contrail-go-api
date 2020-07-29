@@ -299,7 +299,9 @@ func (kClient *KeystoneClient) AddAuthentication(req *http.Request) error {
 
 // AddEncryption implements the Encryptor interface for Client.
 func (kClient *KeystoneClient) AddEncryption(caFile string, keyFile string, certFile string, insecure bool) error {
-	kClient.osAuthURL = strings.Replace(kClient.osAuthURL, "http", "https", 1)
+	if !strings.HasPrefix(kClient.osAuthURL, "https") {
+		kClient.osAuthURL = strings.Replace(kClient.osAuthURL, "http", "https", 1)
+	}
 
 	tlsConfig := &tls.Config{}
 	if insecure {
