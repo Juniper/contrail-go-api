@@ -27,7 +27,7 @@ type IObject interface {
 	SetUuid(string)
 	SetFQName(string, []string)
 
-	SetClient(objectInterface)
+	SetClient(ObjectInterface)
 	UpdateObject() ([]byte, error)
 	UpdateReferences() error
 	UpdateDone()
@@ -45,7 +45,7 @@ type ObjectBase struct {
 
 	// clientPtr is set once the object is persisted in the API server
 	// or for objects that are retrieved via Read/GET
-	clientPtr objectInterface
+	clientPtr ObjectInterface
 	parent    IObject
 }
 
@@ -123,7 +123,7 @@ func (obj *ObjectBase) GetParentType() string {
 
 // SetClient is used to mark an object as persistent (it has been created or read)
 // from the API and supplying it with the methods required to perform an update.
-func (obj *ObjectBase) SetClient(c objectInterface) {
+func (obj *ObjectBase) SetClient(c ObjectInterface) {
 	obj.clientPtr = c
 }
 

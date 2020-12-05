@@ -28,9 +28,9 @@ import (
 // Each auto-generated type implements the IObject interface.
 type TypeMap map[string]reflect.Type
 
-// objectInterface defines the interface used internally between
+// ObjectInterface defines the interface used internally between
 // ObjectBase and Client implmementation
-type objectInterface interface {
+type ObjectInterface interface {
 	GetField(IObject, string) error
 	UpdateReference(*ReferenceUpdateMsg) error
 }
@@ -170,7 +170,11 @@ func (c *Client) SetEncryptor(encrypt Encryptor) {
 }
 
 func typename(ptr IObject) string {
-	name := reflect.TypeOf(ptr).Elem().Name()
+	tname := reflect.TypeOf(ptr)
+	if tname.Kind() == reflect.Ptr {
+		tname = tname.Elem()
+	}
+	name := tname.Name()
 	var buf []rune
 	for i, c := range name {
 		if unicode.IsUpper(c) {
